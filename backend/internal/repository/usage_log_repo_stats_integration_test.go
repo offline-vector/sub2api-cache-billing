@@ -53,6 +53,7 @@ func TestUsageLog_UpstreamModelMismatchFilterAndPartialIndex(t *testing.T) {
 	}}, stats.UpstreamEndpoints)
 	require.Equal(t, []usagestats.EndpointStat{{
 		Endpoint: "unknown -> unknown", Requests: 1, TotalTokens: 2,
+		UpstreamTotalTokens: 2,
 	}}, stats.EndpointPaths)
 
 	trend, err := repo.GetUsageTrendWithUsageFilters(ctx, start, end, "hour", usagestats.UsageLogFilters{
