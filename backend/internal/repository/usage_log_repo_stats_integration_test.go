@@ -48,6 +48,7 @@ func TestUsageLog_UpstreamModelMismatchFilterAndPartialIndex(t *testing.T) {
 	}}, stats.Endpoints)
 	require.Equal(t, []usagestats.EndpointStat{{
 		Endpoint: "unknown", Requests: 1, TotalTokens: 2,
+		UpstreamTotalTokens: 2,
 	}}, stats.UpstreamEndpoints)
 	require.Equal(t, []usagestats.EndpointStat{{
 		Endpoint: "unknown -> unknown", Requests: 1, TotalTokens: 2,
