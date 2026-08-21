@@ -101,7 +101,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // session_id
 			log.UpstreamInputTokens,
 			log.UpstreamCacheReadTokens,
-			log.CacheBillingRatio,
+			1.0, // unset cache_billing_ratio is normalized to the neutral ratio
 			log.UpstreamTotalCost,
 			createdAt,
 		).
@@ -197,7 +197,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // session_id
 			log.UpstreamInputTokens,
 			log.UpstreamCacheReadTokens,
-			log.CacheBillingRatio,
+			1.0, // unset cache_billing_ratio is normalized to the neutral ratio
 			log.UpstreamTotalCost,
 			createdAt,
 		).

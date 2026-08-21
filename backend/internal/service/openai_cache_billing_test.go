@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"math"
 	"testing"
@@ -111,18 +112,18 @@ func TestRewriteAnthropicCacheUsageMapForBilling(t *testing.T) {
 func TestGatewayOpenAICacheBillingEligibility(t *testing.T) {
 	svc := &GatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{OpenAICacheBillingRatio: 0.6}}}
 	openAIAccount := &Account{Platform: PlatformOpenAI}
-	if got := svc.openAICacheBillingRatioFor(nil, &ForwardResult{}, openAIAccount); got != 0.6 {
+	if got := svc.openAICacheBillingRatioFor(context.Background(), &ForwardResult{}, openAIAccount); got != 0.6 {
 		t.Fatalf("eligible gateway ratio=%v", got)
 	}
 	for name, result := range map[string]*ForwardResult{
 		"image": {ImageCount: 1},
 		"audio": {AudioUsage: &AudioUsage{}},
 	} {
-		if got := svc.openAICacheBillingRatioFor(nil, result, openAIAccount); got != 1 {
+		if got := svc.openAICacheBillingRatioFor(context.Background(), result, openAIAccount); got != 1 {
 			t.Fatalf("%s ratio=%v want=1", name, got)
 		}
 	}
-	if got := svc.openAICacheBillingRatioFor(nil, &ForwardResult{}, &Account{Platform: PlatformAnthropic}); got != 1 {
+	if got := svc.openAICacheBillingRatioFor(context.Background(), &ForwardResult{}, &Account{Platform: PlatformAnthropic}); got != 1 {
 		t.Fatalf("non-OpenAI ratio=%v want=1", got)
 	}
 }

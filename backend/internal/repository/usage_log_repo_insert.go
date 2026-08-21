@@ -1300,6 +1300,13 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 	upstreamModel := nullString(log.UpstreamModel)
 	upstreamResponseModel := nullString(log.UpstreamResponseModel)
 	upstreamModelMismatch := nullBool(log.UpstreamModelMismatch)
+	cacheBillingRatio := log.CacheBillingRatio
+	if cacheBillingRatio == 0 {
+		// UsageLog predates this audit field and some internal callers still rely
+		// on its Go zero value. Persist the neutral ratio instead of overriding
+		// the database default with an invalid explicit zero.
+		cacheBillingRatio = 1
+	}
 
 	var requestIDArg any
 	if requestID != "" {
@@ -1372,7 +1379,7 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 			sessionID,            // session_id
 			log.UpstreamInputTokens,
 			log.UpstreamCacheReadTokens,
-			log.CacheBillingRatio,
+			cacheBillingRatio,
 			log.UpstreamTotalCost,
 			createdAt,
 		},
