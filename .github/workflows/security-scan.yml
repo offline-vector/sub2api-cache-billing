@@ -1,3 +1,4 @@
+# Private fork security checks; keep aligned with upstream when rebasing.
 name: Security Scan
 
 on:

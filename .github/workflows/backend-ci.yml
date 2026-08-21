@@ -1,3 +1,4 @@
+# Private fork CI; keep aligned with upstream when rebasing.
 name: CI
 
 on:
