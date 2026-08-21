@@ -44272,6 +44272,8 @@ type UsageLogMutation struct {
 	addtotal_cost                 *float64
 	actual_cost                   *float64
 	addactual_cost                *float64
+	upstream_total_cost           *float64
+	addupstream_total_cost        *float64
 	rate_multiplier               *float64
 	addrate_multiplier            *float64
 	long_context_billing_applied  *bool
@@ -45945,6 +45947,62 @@ func (m *UsageLogMutation) ResetActualCost() {
 	m.addactual_cost = nil
 }
 
+// SetUpstreamTotalCost sets the "upstream_total_cost" field.
+func (m *UsageLogMutation) SetUpstreamTotalCost(f float64) {
+	m.upstream_total_cost = &f
+	m.addupstream_total_cost = nil
+}
+
+// UpstreamTotalCost returns the value of the "upstream_total_cost" field in the mutation.
+func (m *UsageLogMutation) UpstreamTotalCost() (r float64, exists bool) {
+	v := m.upstream_total_cost
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamTotalCost returns the old "upstream_total_cost" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldUpstreamTotalCost(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamTotalCost is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamTotalCost requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamTotalCost: %w", err)
+	}
+	return oldValue.UpstreamTotalCost, nil
+}
+
+// AddUpstreamTotalCost adds f to the "upstream_total_cost" field.
+func (m *UsageLogMutation) AddUpstreamTotalCost(f float64) {
+	if m.addupstream_total_cost != nil {
+		*m.addupstream_total_cost += f
+	} else {
+		m.addupstream_total_cost = &f
+	}
+}
+
+// AddedUpstreamTotalCost returns the value that was added to the "upstream_total_cost" field in this mutation.
+func (m *UsageLogMutation) AddedUpstreamTotalCost() (r float64, exists bool) {
+	v := m.addupstream_total_cost
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUpstreamTotalCost resets all changes to the "upstream_total_cost" field.
+func (m *UsageLogMutation) ResetUpstreamTotalCost() {
+	m.upstream_total_cost = nil
+	m.addupstream_total_cost = nil
+}
+
 // SetRateMultiplier sets the "rate_multiplier" field.
 func (m *UsageLogMutation) SetRateMultiplier(f float64) {
 	m.rate_multiplier = &f
@@ -47154,7 +47212,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 50)
+	fields := make([]string, 0, 51)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -47244,6 +47302,9 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.actual_cost != nil {
 		fields = append(fields, usagelog.FieldActualCost)
+	}
+	if m.upstream_total_cost != nil {
+		fields = append(fields, usagelog.FieldUpstreamTotalCost)
 	}
 	if m.rate_multiplier != nil {
 		fields = append(fields, usagelog.FieldRateMultiplier)
@@ -47373,6 +47434,8 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.TotalCost()
 	case usagelog.FieldActualCost:
 		return m.ActualCost()
+	case usagelog.FieldUpstreamTotalCost:
+		return m.UpstreamTotalCost()
 	case usagelog.FieldRateMultiplier:
 		return m.RateMultiplier()
 	case usagelog.FieldLongContextBillingApplied:
@@ -47482,6 +47545,8 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldTotalCost(ctx)
 	case usagelog.FieldActualCost:
 		return m.OldActualCost(ctx)
+	case usagelog.FieldUpstreamTotalCost:
+		return m.OldUpstreamTotalCost(ctx)
 	case usagelog.FieldRateMultiplier:
 		return m.OldRateMultiplier(ctx)
 	case usagelog.FieldLongContextBillingApplied:
@@ -47741,6 +47806,13 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetActualCost(v)
 		return nil
+	case usagelog.FieldUpstreamTotalCost:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamTotalCost(v)
+		return nil
 	case usagelog.FieldRateMultiplier:
 		v, ok := value.(float64)
 		if !ok {
@@ -47937,6 +48009,9 @@ func (m *UsageLogMutation) AddedFields() []string {
 	if m.addactual_cost != nil {
 		fields = append(fields, usagelog.FieldActualCost)
 	}
+	if m.addupstream_total_cost != nil {
+		fields = append(fields, usagelog.FieldUpstreamTotalCost)
+	}
 	if m.addrate_multiplier != nil {
 		fields = append(fields, usagelog.FieldRateMultiplier)
 	}
@@ -48001,6 +48076,8 @@ func (m *UsageLogMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedTotalCost()
 	case usagelog.FieldActualCost:
 		return m.AddedActualCost()
+	case usagelog.FieldUpstreamTotalCost:
+		return m.AddedUpstreamTotalCost()
 	case usagelog.FieldRateMultiplier:
 		return m.AddedRateMultiplier()
 	case usagelog.FieldAccountRateMultiplier:
@@ -48137,6 +48214,13 @@ func (m *UsageLogMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddActualCost(v)
+		return nil
+	case usagelog.FieldUpstreamTotalCost:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUpstreamTotalCost(v)
 		return nil
 	case usagelog.FieldRateMultiplier:
 		v, ok := value.(float64)
@@ -48445,6 +48529,9 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldActualCost:
 		m.ResetActualCost()
+		return nil
+	case usagelog.FieldUpstreamTotalCost:
+		m.ResetUpstreamTotalCost()
 		return nil
 	case usagelog.FieldRateMultiplier:
 		m.ResetRateMultiplier()

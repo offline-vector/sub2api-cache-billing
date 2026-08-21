@@ -408,6 +408,7 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 	stats.TotalAccountCost = nil
 	stats.UpstreamEndpoints = nil
 	stats.EndpointPaths = nil
+	scrubUsageStatsUpstreamAudit(stats)
 
 	response.Success(c, stats)
 }
@@ -449,7 +450,6 @@ func (h *UsageHandler) DashboardStats(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-
 	response.Success(c, stats)
 }
 
@@ -467,6 +467,7 @@ func (h *UsageHandler) DashboardTrend(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	scrubTrendUpstreamAudit(trend)
 
 	response.Success(c, gin.H{
 		"trend":       trend,
@@ -541,6 +542,7 @@ func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
 			response.ErrorFrom(c, err)
 			return
 		}
+		scrubTrendUpstreamAudit(trend)
 		resp["trend"] = trend
 	}
 	if includeModels {
@@ -561,6 +563,30 @@ func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
 	}
 
 	response.Success(c, resp)
+}
+
+func scrubUsageStatsUpstreamAudit(stats *usagestats.UsageStats) {
+	if stats == nil {
+		return
+	}
+	stats.TotalUpstreamInputTokens = 0
+	stats.TotalUpstreamCacheReadTokens = 0
+	stats.TotalUpstreamCost = 0
+	stats.TotalReclassifiedCacheTokens = 0
+	for i := range stats.Endpoints {
+		stats.Endpoints[i].UpstreamTotalTokens = 0
+		stats.Endpoints[i].UpstreamCost = 0
+		stats.Endpoints[i].ReclassifiedCacheTokens = 0
+	}
+}
+
+func scrubTrendUpstreamAudit(trend []usagestats.TrendDataPoint) {
+	for i := range trend {
+		trend[i].UpstreamInputTokens = 0
+		trend[i].UpstreamCacheReadTokens = 0
+		trend[i].UpstreamCost = 0
+		trend[i].ReclassifiedCacheTokens = 0
+	}
 }
 
 func userModelStatsFromUsageStats(stats []usagestats.ModelStat) []userModelStat {

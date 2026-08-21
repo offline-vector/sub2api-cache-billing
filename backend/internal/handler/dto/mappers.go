@@ -714,6 +714,7 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 		UpstreamInputTokens:     l.UpstreamInputTokens,
 		UpstreamCacheReadTokens: l.UpstreamCacheReadTokens,
 		CacheBillingRatio:       l.CacheBillingRatio,
+		UpstreamTotalCost:       l.UpstreamTotalCost,
 		UpstreamModel:           l.UpstreamModel,
 		UpstreamResponseModel:   l.UpstreamResponseModel,
 		UpstreamModelMismatch:   l.UpstreamModelMismatch,

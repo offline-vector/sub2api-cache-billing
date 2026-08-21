@@ -5,7 +5,8 @@
 ALTER TABLE usage_logs
     ADD COLUMN IF NOT EXISTS upstream_input_tokens INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS upstream_cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS cache_billing_ratio NUMERIC(10, 6) NOT NULL DEFAULT 1.0;
+    ADD COLUMN IF NOT EXISTS cache_billing_ratio NUMERIC(10, 6) NOT NULL DEFAULT 1.0,
+    ADD COLUMN IF NOT EXISTS upstream_total_cost NUMERIC(20, 10) NOT NULL DEFAULT 0;
 
 ALTER TABLE usage_logs
     DROP CONSTRAINT IF EXISTS usage_logs_cache_billing_ratio_check;

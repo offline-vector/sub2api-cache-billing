@@ -54,14 +54,26 @@ func (s *OpenAIGatewayService) openAICacheBillingRatioFor(result *OpenAIForwardR
 		result.AudioUsage != nil || result.Usage.ImageInputTokens > 0 || result.Usage.ImageOutputTokens > 0 {
 		return defaultOpenAICacheBillingRatio
 	}
-	if s == nil || s.cfg == nil {
+	if s == nil {
+		return defaultOpenAICacheBillingRatio
+	}
+	if s.settingService != nil {
+		return s.settingService.GetOpenAICacheBillingRatio(nil)
+	}
+	if s.cfg == nil {
 		return defaultOpenAICacheBillingRatio
 	}
 	return normalizeOpenAICacheBillingRatio(s.cfg.Gateway.OpenAICacheBillingRatio)
 }
 
 func (s *OpenAIGatewayService) openAICacheBillingRatioForClient(account *Account) float64 {
-	if account == nil || account.Platform != PlatformOpenAI || s == nil || s.cfg == nil {
+	if account == nil || account.Platform != PlatformOpenAI || s == nil {
+		return defaultOpenAICacheBillingRatio
+	}
+	if s.settingService != nil {
+		return s.settingService.GetOpenAICacheBillingRatio(nil)
+	}
+	if s.cfg == nil {
 		return defaultOpenAICacheBillingRatio
 	}
 	return normalizeOpenAICacheBillingRatio(s.cfg.Gateway.OpenAICacheBillingRatio)

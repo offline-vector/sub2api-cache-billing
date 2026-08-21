@@ -203,6 +203,72 @@
 
         <!-- Tab: Gateway -->
         <div v-show="activeTab === 'gateway'" class="space-y-6">
+          <div class="card" data-testid="openai-cache-billing-card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    {{ localText("OpenAI 缓存计费口径", "OpenAI cache billing policy") }}
+                  </h2>
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {{ localText("控制客户侧缓存读取的计费归类；上游成本、账号额度和上游用量窗口保持原始口径。", "Controls customer cache-read classification while upstream cost, account quota, and provider windows remain unchanged.") }}
+                  </p>
+                </div>
+                <span class="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300">
+                  {{ localText("当前生效", "Active") }} {{ Math.round(savedCacheBillingRatio * 100) }}%
+                </span>
+              </div>
+            </div>
+            <div class="space-y-5 p-6">
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ localText("缓存保留比例", "Cache retention ratio") }}
+                </label>
+                <div class="inline-flex flex-wrap gap-2" role="group">
+                  <button
+                    v-for="preset in cacheBillingPresets"
+                    :key="preset.value"
+                    type="button"
+                    class="btn btn-sm"
+                    :class="Math.abs(form.openai_cache_billing_ratio - preset.value) < 0.000001 ? 'btn-primary' : 'btn-secondary'"
+                    @click="form.openai_cache_billing_ratio = preset.value"
+                  >
+                    {{ preset.label }}
+                    <span v-if="preset.value === 0.86" class="ml-1 opacity-75">{{ localText("推荐", "Recommended") }}</span>
+                  </button>
+                </div>
+                <div class="mt-3 flex max-w-sm items-center gap-2">
+                  <input
+                    v-model.number="form.openai_cache_billing_ratio"
+                    data-testid="openai-cache-billing-ratio"
+                    type="number"
+                    min="0.01"
+                    max="1"
+                    step="0.01"
+                    class="input w-32"
+                  />
+                  <span class="text-sm text-gray-500">0.01 - 1.00</span>
+                </div>
+              </div>
+
+              <div class="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                {{ localText("仅影响保存后新产生的成功 OpenAI 文本请求。不会修改历史记录，也不影响图片、音频、视频、失败请求或其他平台。86% 表示保留 86% 缓存 Token，剩余 14% 转为普通输入计费，并不是把费用乘以 86%。", "Only new successful OpenAI text requests are affected. History, images, audio, video, failures, and other providers are unchanged. At 86%, 14% of cache-read tokens are reclassified as normal input; costs are not multiplied by 86%.") }}
+              </div>
+
+              <div class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700">
+                <button
+                  type="button"
+                  data-testid="openai-cache-billing-save"
+                  class="btn btn-primary btn-sm"
+                  :disabled="cacheBillingSaving || Math.abs(form.openai_cache_billing_ratio - savedCacheBillingRatio) < 0.000001"
+                  @click="saveCacheBillingRatio"
+                >
+                  {{ cacheBillingSaving ? localText("保存中...", "Saving...") : localText("保存并立即生效", "Save and apply now") }}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Overload Cooldown (529) Settings -->
           <div class="card">
             <div
@@ -8942,6 +9008,14 @@ const rateLimit429CooldownForm = reactive({
 // Panel API Rate Limit 状态
 const panelRateLimitLoading = ref(true);
 const panelRateLimitSaving = ref(false);
+const cacheBillingSaving = ref(false);
+const savedCacheBillingRatio = ref(1);
+const cacheBillingPresets = [
+  { value: 1, label: "100%" },
+  { value: 0.9, label: "90%" },
+  { value: 0.86, label: "86%" },
+  { value: 0.8, label: "80%" },
+];
 const panelRateLimitForm = reactive({
   enabled: true,
   user_rpm: 240,
@@ -9454,6 +9528,7 @@ type SettingsForm = Omit<
   force_email_on_third_party_signup: boolean;
   openai_low_upstream_rate_priority_enabled: boolean;
   openai_oauth_scheduling_rate_multiplier: number;
+  openai_cache_billing_ratio: number;
   openai_advanced_scheduler_enabled: boolean;
   openai_advanced_scheduler_sticky_weighted_enabled: boolean;
   openai_advanced_scheduler_subscription_priority_enabled: boolean;
@@ -9696,6 +9771,7 @@ const form = reactive<SettingsForm>({
   allow_ungrouped_key_scheduling: false,
   openai_low_upstream_rate_priority_enabled: false,
   openai_oauth_scheduling_rate_multiplier: 1,
+  openai_cache_billing_ratio: 1,
   openai_advanced_scheduler_enabled: false,
   openai_advanced_scheduler_sticky_weighted_enabled: false,
   openai_advanced_scheduler_subscription_priority_enabled: false,
@@ -10721,6 +10797,7 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    savedCacheBillingRatio.value = Number(settings.openai_cache_billing_ratio) || 1;
     syncCaptchaProviderSelection();
     if (!form.claude_oauth_system_prompt_blocks?.trim()) {
       form.claude_oauth_system_prompt_blocks =
@@ -10879,6 +10956,34 @@ async function loadSettings() {
     );
   } finally {
     loading.value = false;
+  }
+}
+
+async function saveCacheBillingRatio(): Promise<void> {
+  const ratio = Number(form.openai_cache_billing_ratio);
+  if (!Number.isFinite(ratio) || ratio <= 0 || ratio > 1) {
+    appStore.showError(
+      localText("缓存保留比例必须大于 0 且不超过 1。", "Cache retention ratio must be greater than 0 and no more than 1."),
+    );
+    return;
+  }
+
+  cacheBillingSaving.value = true;
+  try {
+    const updated = await settingsStepUp.run(() =>
+      adminAPI.settings.updateSettings({ openai_cache_billing_ratio: ratio }),
+    );
+    const saved = Number(updated.openai_cache_billing_ratio);
+    savedCacheBillingRatio.value = Number.isFinite(saved) && saved > 0 && saved <= 1 ? saved : ratio;
+    form.openai_cache_billing_ratio = savedCacheBillingRatio.value;
+    appStore.showSuccess(localText("缓存计费口径已立即生效。", "Cache billing policy is now active."));
+  } catch (error: unknown) {
+    if (isStepUpCancelled(error)) return;
+    appStore.showError(
+      extractApiErrorMessage(error, localText("保存缓存计费口径失败。", "Failed to save cache billing policy.")),
+    );
+  } finally {
+    cacheBillingSaving.value = false;
   }
 }
 
@@ -11356,6 +11461,7 @@ async function saveSettings() {
         form.openai_low_upstream_rate_priority_enabled,
       openai_oauth_scheduling_rate_multiplier:
         form.openai_oauth_scheduling_rate_multiplier,
+      openai_cache_billing_ratio: form.openai_cache_billing_ratio,
       openai_advanced_scheduler_enabled: form.openai_advanced_scheduler_enabled,
       openai_advanced_scheduler_sticky_weighted_enabled:
         form.openai_advanced_scheduler_sticky_weighted_enabled,

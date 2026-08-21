@@ -567,6 +567,31 @@ const getRequestTypeLabel = (log: AdminUsageLog): string => {
   return t('usage.unknown')
 }
 
+const normalizeCacheBillingAudit = (log: AdminUsageLog) => {
+  const ratio = log.cache_billing_ratio ?? 1
+  const policyApplied = ratio < 0.999999
+  const input = log.input_tokens ?? 0
+  const cacheCreation = log.cache_creation_tokens ?? 0
+  const cacheRead = log.cache_read_tokens ?? 0
+  const customerCost = log.total_cost ?? 0
+  const upstreamInputTotal = policyApplied
+    ? (log.upstream_input_tokens ?? (input + cacheCreation + cacheRead))
+    : (input + cacheCreation + cacheRead)
+  const upstreamCacheRead = policyApplied
+    ? (log.upstream_cache_read_tokens ?? cacheRead)
+    : cacheRead
+  const upstreamUncachedInput = Math.max(0, upstreamInputTotal - cacheCreation - upstreamCacheRead)
+  const upstreamCost = policyApplied ? (log.upstream_total_cost ?? customerCost) : customerCost
+
+  return {
+    ratio,
+    upstreamUncachedInput,
+    upstreamCacheRead,
+    upstreamCost,
+    reclassifiedCache: Math.max(0, upstreamCacheRead - cacheRead),
+  }
+}
+
 const exportToExcel = async () => {
   if (exporting.value) return; exporting.value = true; exportProgress.show = true
   const c = new AbortController(); exportAbortController = c
@@ -578,11 +603,11 @@ const exportToExcel = async () => {
       t('admin.usage.account'), t('usage.requestedModel'), t('usage.sentUpstreamModel'), t('usage.upstreamResponseModel'), t('usage.upstreamModelMismatch'), t('usage.reasoningEffort'), t('admin.usage.group'),
       t('usage.inboundEndpoint'), t('usage.upstreamEndpoint'),
       t('usage.type'),
-      t('admin.usage.inputTokens'), t('admin.usage.outputTokens'),
-      t('admin.usage.cacheReadTokens'), t('admin.usage.cacheCreationTokens'),
+      'Upstream Input', 'Upstream Cache Read', t('admin.usage.inputTokens'), t('admin.usage.outputTokens'),
+      t('admin.usage.cacheReadTokens'), t('admin.usage.cacheCreationTokens'), 'Reclassified Cache', 'Cache Ratio',
       t('admin.usage.inputCost'), t('admin.usage.outputCost'),
       t('admin.usage.cacheReadCost'), t('admin.usage.cacheCreationCost'),
-      t('usage.rate'), t('usage.accountMultiplier'), t('usage.original'), t('usage.userBilled'), t('usage.accountBilled'),
+      t('usage.rate'), t('usage.accountMultiplier'), 'Upstream Standard', t('usage.original'), t('usage.userBilled'), t('usage.accountBilled'), 'Policy Delta',
       t('usage.firstToken'), t('usage.duration'),
       t('admin.usage.requestId'), t('usage.userAgent'), t('admin.usage.ipAddress')
     ]
@@ -593,18 +618,26 @@ const exportToExcel = async () => {
         { signal: c.signal }
       )
       if (c.signal.aborted) break; if (p === 1) { total = res.total; exportProgress.total = total }
-      const rows = (res.items || []).map((log: AdminUsageLog) => [
-        log.created_at, log.user?.email || '', log.api_key?.name || '', log.account?.name || '', log.model,
-        log.upstream_model || log.model, log.upstream_response_model || '', log.upstream_model_mismatch == null ? '' : t(log.upstream_model_mismatch ? 'common.yes' : 'common.no'), formatReasoningEffort(log.reasoning_effort), log.group?.name || '',
-        log.inbound_endpoint || '', log.upstream_endpoint || '', getRequestTypeLabel(log),
-        log.input_tokens, log.output_tokens, log.cache_read_tokens, log.cache_creation_tokens,
-        log.input_cost?.toFixed(6) || '0.000000', log.output_cost?.toFixed(6) || '0.000000',
-        log.cache_read_cost?.toFixed(6) || '0.000000', log.cache_creation_cost?.toFixed(6) || '0.000000',
-        log.rate_multiplier?.toPrecision(4) || '1.00', (log.account_rate_multiplier ?? 1).toPrecision(4),
-        log.total_cost?.toFixed(6) || '0.000000', log.actual_cost?.toFixed(6) || '0.000000',
-        ((log.account_stats_cost ?? log.total_cost) * (log.account_rate_multiplier ?? 1)).toFixed(6), log.first_token_ms ?? '', log.duration_ms,
-        log.request_id || '', log.user_agent || '', log.ip_address || ''
-      ])
+      const rows = (res.items || []).map((log: AdminUsageLog) => {
+        const audit = normalizeCacheBillingAudit(log)
+        return [
+          log.created_at, log.user?.email || '', log.api_key?.name || '', log.account?.name || '', log.model,
+          log.upstream_model || log.model, log.upstream_response_model || '', log.upstream_model_mismatch == null ? '' : t(log.upstream_model_mismatch ? 'common.yes' : 'common.no'), formatReasoningEffort(log.reasoning_effort), log.group?.name || '',
+          log.inbound_endpoint || '', log.upstream_endpoint || '', getRequestTypeLabel(log),
+          audit.upstreamUncachedInput, audit.upstreamCacheRead,
+          log.input_tokens, log.output_tokens, log.cache_read_tokens, log.cache_creation_tokens,
+          audit.reclassifiedCache, `${Math.round(audit.ratio * 100)}%`,
+          log.input_cost?.toFixed(6) || '0.000000', log.output_cost?.toFixed(6) || '0.000000',
+          log.cache_read_cost?.toFixed(6) || '0.000000', log.cache_creation_cost?.toFixed(6) || '0.000000',
+          log.rate_multiplier?.toPrecision(4) || '1.00', (log.account_rate_multiplier ?? 1).toPrecision(4),
+          audit.upstreamCost.toFixed(6),
+          log.total_cost?.toFixed(6) || '0.000000', log.actual_cost?.toFixed(6) || '0.000000',
+          ((log.account_stats_cost ?? audit.upstreamCost) * (log.account_rate_multiplier ?? 1)).toFixed(6),
+          Math.max(0, (log.total_cost ?? 0) - audit.upstreamCost).toFixed(6),
+          log.first_token_ms ?? '', log.duration_ms,
+          log.request_id || '', log.user_agent || '', log.ip_address || ''
+        ]
+      })
       if (rows.length) {
         XLSX.utils.sheet_add_aoa(ws, rows, { origin: -1 })
       }

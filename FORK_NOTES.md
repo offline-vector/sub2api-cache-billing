@@ -17,6 +17,12 @@ Environment equivalent:
 GATEWAY_OPENAI_CACHE_BILLING_RATIO=1.0
 ```
 
+The administrator Gateway settings page provides `100%`, `90%`, `86%`, and
+`80%` presets plus an explicit save action. Saving updates the process-local
+atomic value immediately; no backend, PostgreSQL, or Redis restart is required.
+The environment value remains the startup fallback when no database setting
+has been saved.
+
 The accepted range is `(0, 1]`. Invalid, non-finite, missing, or unsafe runtime
 values fail closed to official behavior (`1.0`). A value of `0.60` retains 60%
 of provider-reported cache reads in the cache billing bucket and moves the
@@ -54,20 +60,25 @@ usage fields:
 - `upstream_input_tokens`
 - `upstream_cache_read_tokens`
 - `cache_billing_ratio`
+- `upstream_total_cost`
 
-Existing `input_tokens` and `cache_read_tokens` remain the customer-billable
-buckets. Historical rows retain zero raw fields and ratio `1.0`; new rows always
-write all three audit values. The admin usage API exposes the audit fields; the
-regular user usage API does not expose upstream internals.
+Migration `901_openai_cache_billing_aggregates.sql` adds the same dual-accounting
+data to hourly and daily dashboard aggregates. Existing `input_tokens`,
+`cache_read_tokens`, `total_cost`, and `actual_cost` remain the customer-billable
+buckets and customer deduction. Account quota, provider usage windows, and the
+administrator `A` cost use the upstream view. Administrator usage, dashboard,
+trend, model/group/endpoint summaries, and exports show both views; regular user
+APIs do not expose upstream internals. Historical rows keep ratio `1.0` and fall
+back to their legacy values.
 
 ## Deployment and Rollback
 
 1. Back up PostgreSQL and verify the migration on staging.
 2. Build an image from this repository and pin it by immutable commit or digest.
 3. Start with ratio `1.0` and verify HTTP, SSE, Chat Completions, and WebSocket logs.
-4. Change the ratio only after publishing the pricing policy. The backend must be
-   restarted; PostgreSQL and Redis do not need a restart.
-5. Roll back behavior by restoring `1.0` and restarting the backend. Do not remove
+4. Change the ratio only after publishing the pricing policy. Saving is immediate
+   and does not restart any service.
+5. Roll back behavior by saving `1.0`. Do not remove
    the audit columns during an incident.
 
 Do not use the official online updater on a custom deployment: it replaces the
@@ -87,5 +98,5 @@ git cherry-pick <fork-commit(s)>
 
 Resolve generated Ent conflicts by editing `backend/ent/schema/usage_log.go` and
 running `cd backend && go generate ./ent`; do not hand-merge generated files.
-Check for an upstream migration number collision before carrying migration `900`
+Check for an upstream migration number collision before carrying migrations `900` and `901`
 forward. Run the full backend and security suites before building an image.

@@ -34,17 +34,20 @@ func TestUsageLogFromService_CacheBillingAuditIsAdminOnly(t *testing.T) {
 		UpstreamInputTokens:     100,
 		UpstreamCacheReadTokens: 80,
 		CacheBillingRatio:       0.6,
+		UpstreamTotalCost:       1.25,
 	}
 
 	userJSON, err := json.Marshal(UsageLogFromService(log))
 	require.NoError(t, err)
 	require.NotContains(t, string(userJSON), "upstream_input_tokens")
 	require.NotContains(t, string(userJSON), "cache_billing_ratio")
+	require.NotContains(t, string(userJSON), "upstream_total_cost")
 
 	admin := UsageLogFromServiceAdmin(log)
 	require.Equal(t, 100, admin.UpstreamInputTokens)
 	require.Equal(t, 80, admin.UpstreamCacheReadTokens)
 	require.Equal(t, 0.6, admin.CacheBillingRatio)
+	require.Equal(t, 1.25, admin.UpstreamTotalCost)
 }
 
 func TestUsageLogFromService_PrefersRequestTypeForLegacyFields(t *testing.T) {

@@ -205,6 +205,11 @@ func ActualCost(v float64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldActualCost, v))
 }
 
+// UpstreamTotalCost applies equality check predicate on the "upstream_total_cost" field. It's identical to UpstreamTotalCostEQ.
+func UpstreamTotalCost(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamTotalCost, v))
+}
+
 // RateMultiplier applies equality check predicate on the "rate_multiplier" field. It's identical to RateMultiplierEQ.
 func RateMultiplier(v float64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldRateMultiplier, v))
@@ -1668,6 +1673,46 @@ func ActualCostLT(v float64) predicate.UsageLog {
 // ActualCostLTE applies the LTE predicate on the "actual_cost" field.
 func ActualCostLTE(v float64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldLTE(FieldActualCost, v))
+}
+
+// UpstreamTotalCostEQ applies the EQ predicate on the "upstream_total_cost" field.
+func UpstreamTotalCostEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamTotalCost, v))
+}
+
+// UpstreamTotalCostNEQ applies the NEQ predicate on the "upstream_total_cost" field.
+func UpstreamTotalCostNEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldUpstreamTotalCost, v))
+}
+
+// UpstreamTotalCostIn applies the In predicate on the "upstream_total_cost" field.
+func UpstreamTotalCostIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldUpstreamTotalCost, vs...))
+}
+
+// UpstreamTotalCostNotIn applies the NotIn predicate on the "upstream_total_cost" field.
+func UpstreamTotalCostNotIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldUpstreamTotalCost, vs...))
+}
+
+// UpstreamTotalCostGT applies the GT predicate on the "upstream_total_cost" field.
+func UpstreamTotalCostGT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldUpstreamTotalCost, v))
+}
+
+// UpstreamTotalCostGTE applies the GTE predicate on the "upstream_total_cost" field.
+func UpstreamTotalCostGTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldUpstreamTotalCost, v))
+}
+
+// UpstreamTotalCostLT applies the LT predicate on the "upstream_total_cost" field.
+func UpstreamTotalCostLT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldUpstreamTotalCost, v))
+}
+
+// UpstreamTotalCostLTE applies the LTE predicate on the "upstream_total_cost" field.
+func UpstreamTotalCostLTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldUpstreamTotalCost, v))
 }
 
 // RateMultiplierEQ applies the EQ predicate on the "rate_multiplier" field.

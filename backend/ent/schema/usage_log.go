@@ -90,8 +90,8 @@ func (UsageLog) Fields() []ent.Field {
 		field.Int("upstream_cache_read_tokens").
 			Default(0).
 			Comment("Provider-reported cache-read tokens before billing reclassification"),
-			field.Float("cache_billing_ratio").
-				Default(1.0).
+		field.Float("cache_billing_ratio").
+			Default(1.0).
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,6)"}).
 			Comment("Fraction of upstream cache-read tokens retained in the cache billing bucket"),
 		field.Int("cache_creation_5m_tokens").
@@ -118,6 +118,10 @@ func (UsageLog) Fields() []ent.Field {
 		field.Float("actual_cost").
 			Default(0).
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}),
+		field.Float("upstream_total_cost").
+			Default(0).
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}).
+			Comment("Local standard cost recalculated from provider-reported token buckets before cache reclassification"),
 		field.Float("rate_multiplier").
 			Default(1).
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}),

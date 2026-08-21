@@ -236,12 +236,16 @@ func (r *usageLogRepository) GetUserUsageTrendByUserID(ctx context.Context, user
 			COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as total_tokens,
 			COALESCE(SUM(total_cost), 0) as cost,
-			COALESCE(SUM(actual_cost), 0) as actual_cost
+			COALESCE(SUM(actual_cost), 0) as actual_cost,
+			COALESCE(SUM(%s), 0) as upstream_input_tokens,
+			COALESCE(SUM(%s), 0) as upstream_cache_read_tokens,
+			COALESCE(SUM(%s), 0) as upstream_cost,
+			COALESCE(SUM((%s) - cache_read_tokens), 0) as reclassified_cache_tokens
 		FROM usage_logs
 		WHERE user_id = $1 AND created_at >= $2 AND created_at < $3
 		GROUP BY date
 		ORDER BY date ASC
-	`, dateFormat)
+	`, dateFormat, upstreamUncachedInputTokensExpr(""), upstreamCacheReadTokensExpr(""), upstreamTotalCostExpr(""), upstreamCacheReadTokensExpr(""))
 
 	rows, err := r.sql.QueryContext(ctx, query, userID, startTime, endTime)
 	if err != nil {
@@ -297,10 +301,14 @@ func (r *usageLogRepository) getUsageTrendWithFilters(ctx context.Context, start
 			COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as total_tokens,
 			COALESCE(SUM(total_cost), 0) as cost,
-			COALESCE(SUM(actual_cost), 0) as actual_cost
+			COALESCE(SUM(actual_cost), 0) as actual_cost,
+			COALESCE(SUM(%s), 0) as upstream_input_tokens,
+			COALESCE(SUM(%s), 0) as upstream_cache_read_tokens,
+			COALESCE(SUM(%s), 0) as upstream_cost,
+			COALESCE(SUM((%s) - cache_read_tokens), 0) as reclassified_cache_tokens
 		FROM usage_logs
 		WHERE created_at >= $1 AND created_at < $2
-	`, dateFormat)
+	`, dateFormat, upstreamUncachedInputTokensExpr(""), upstreamCacheReadTokensExpr(""), upstreamTotalCostExpr(""), upstreamCacheReadTokensExpr(""))
 
 	args := []any{startTime, endTime}
 	if userID > 0 {
@@ -384,7 +392,11 @@ func (r *usageLogRepository) getUsageTrendFromAggregates(ctx context.Context, st
 				cache_read_tokens,
 				(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) as total_tokens,
 				total_cost as cost,
-				actual_cost
+				actual_cost,
+				upstream_input_tokens,
+				upstream_cache_read_tokens,
+				upstream_cost,
+				reclassified_cache_tokens
 			FROM usage_dashboard_hourly
 			WHERE bucket_start >= $1 AND bucket_start < $2
 			ORDER BY bucket_start ASC
@@ -400,7 +412,11 @@ func (r *usageLogRepository) getUsageTrendFromAggregates(ctx context.Context, st
 				cache_read_tokens,
 				(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) as total_tokens,
 				total_cost as cost,
-				actual_cost
+				actual_cost,
+				upstream_input_tokens,
+				upstream_cache_read_tokens,
+				upstream_cost,
+				reclassified_cache_tokens
 			FROM usage_dashboard_daily
 			WHERE bucket_date >= $1::date AND bucket_date < $2::date
 			ORDER BY bucket_date ASC
@@ -446,9 +462,9 @@ func (r *usageLogRepository) getModelStatsWithFiltersBySource(ctx context.Contex
 	actualCostExpr := "COALESCE(SUM(actual_cost), 0) as actual_cost"
 	// 当仅按 account_id 聚合时，实际费用使用账号倍率（total_cost * account_rate_multiplier）。
 	if accountID > 0 && userID == 0 && apiKeyID == 0 {
-		actualCostExpr = "COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as actual_cost"
+		actualCostExpr = fmt.Sprintf("COALESCE(SUM(%s), 0) as actual_cost", upstreamAccountCostExpr(""))
 	}
-	accountCostExpr := "COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as account_cost"
+	accountCostExpr := fmt.Sprintf("COALESCE(SUM(%s), 0) as account_cost", upstreamAccountCostExpr(""))
 	modelExpr := resolveModelDimensionExpression(source)
 
 	query := fmt.Sprintf(`
@@ -462,10 +478,14 @@ func (r *usageLogRepository) getModelStatsWithFiltersBySource(ctx context.Contex
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as total_tokens,
 			COALESCE(SUM(total_cost), 0) as cost,
 			%s,
-			%s
+			%s,
+			COALESCE(SUM(%s), 0) as upstream_input_tokens,
+			COALESCE(SUM(%s), 0) as upstream_cache_read_tokens,
+			COALESCE(SUM(%s), 0) as upstream_cost,
+			COALESCE(SUM((%s) - cache_read_tokens), 0) as reclassified_cache_tokens
 		FROM usage_logs
 		WHERE created_at >= $1 AND created_at < $2
-	`, modelExpr, actualCostExpr, accountCostExpr)
+	`, modelExpr, actualCostExpr, accountCostExpr, upstreamUncachedInputTokensExpr(""), upstreamCacheReadTokensExpr(""), upstreamTotalCostExpr(""), upstreamCacheReadTokensExpr(""))
 
 	args := []any{startTime, endTime}
 	if userID > 0 {
@@ -529,7 +549,7 @@ func (r *usageLogRepository) GetGroupStatsWithUsageFilters(ctx context.Context, 
 }
 
 func (r *usageLogRepository) getGroupStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, model string, requestType *int16, stream *bool, billingType *int8, billingMode string, upstreamModelMismatch *bool) (results []usagestats.GroupStat, err error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
 			COALESCE(ul.group_id, 0) as group_id,
 			COALESCE(g.name, '') as group_name,
@@ -537,11 +557,14 @@ func (r *usageLogRepository) getGroupStatsWithFilters(ctx context.Context, start
 			COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens), 0) as total_tokens,
 			COALESCE(SUM(ul.total_cost), 0) as cost,
 			COALESCE(SUM(ul.actual_cost), 0) as actual_cost,
-			COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) as account_cost
+			COALESCE(SUM(%s), 0) as account_cost,
+			COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens), 0) as upstream_total_tokens,
+			COALESCE(SUM(%s), 0) as upstream_cost,
+			COALESCE(SUM((%s) - ul.cache_read_tokens), 0) as reclassified_cache_tokens
 		FROM usage_logs ul
 		LEFT JOIN groups g ON g.id = ul.group_id
 		WHERE ul.created_at >= $1 AND ul.created_at < $2
-	`
+	`, upstreamAccountCostExpr("ul"), upstreamTotalCostExpr("ul"), upstreamCacheReadTokensExpr("ul"))
 
 	args := []any{startTime, endTime}
 	if userID > 0 {
@@ -598,6 +621,9 @@ func (r *usageLogRepository) getGroupStatsWithFilters(ctx context.Context, start
 			&row.Cost,
 			&row.ActualCost,
 			&row.AccountCost,
+			&row.UpstreamTotalTokens,
+			&row.UpstreamCost,
+			&row.ReclassifiedCacheTokens,
 		); err != nil {
 			return nil, err
 		}
@@ -611,7 +637,7 @@ func (r *usageLogRepository) getGroupStatsWithFilters(ctx context.Context, start
 
 // GetUserBreakdownStats returns per-user usage breakdown within a specific dimension.
 func (r *usageLogRepository) GetUserBreakdownStats(ctx context.Context, startTime, endTime time.Time, dim usagestats.UserBreakdownDimension, limit int) (results []usagestats.UserBreakdownItem, err error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT
 			COALESCE(ul.user_id, 0) as user_id,
 			COALESCE(u.email, '') as email,
@@ -622,11 +648,11 @@ func (r *usageLogRepository) GetUserBreakdownStats(ctx context.Context, startTim
 			COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens), 0) as total_tokens,
 			COALESCE(SUM(ul.total_cost), 0) as cost,
 			COALESCE(SUM(ul.actual_cost), 0) as actual_cost,
-			COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) as account_cost
+			COALESCE(SUM(%s), 0) as account_cost
 		FROM usage_logs ul
 		LEFT JOIN users u ON u.id = ul.user_id
 		WHERE ul.created_at >= $1 AND ul.created_at < $2
-	`
+	`, upstreamAccountCostExpr("ul"))
 	args := []any{startTime, endTime}
 
 	if dim.GroupID > 0 {
@@ -758,6 +784,10 @@ func scanTrendRows(rows *sql.Rows) ([]TrendDataPoint, error) {
 			&row.TotalTokens,
 			&row.Cost,
 			&row.ActualCost,
+			&row.UpstreamInputTokens,
+			&row.UpstreamCacheReadTokens,
+			&row.UpstreamCost,
+			&row.ReclassifiedCacheTokens,
 		); err != nil {
 			return nil, err
 		}
@@ -784,6 +814,10 @@ func scanModelStatsRows(rows *sql.Rows) ([]ModelStat, error) {
 			&row.Cost,
 			&row.ActualCost,
 			&row.AccountCost,
+			&row.UpstreamInputTokens,
+			&row.UpstreamCacheReadTokens,
+			&row.UpstreamCost,
+			&row.ReclassifiedCacheTokens,
 		); err != nil {
 			return nil, err
 		}

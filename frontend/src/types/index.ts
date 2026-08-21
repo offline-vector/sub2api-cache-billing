@@ -1692,7 +1692,11 @@ export interface UsageLogAccountSummary {
 }
 
 export interface AdminUsageLog extends UsageLog {
-  upstream_model?: string | null
+	upstream_input_tokens?: number
+	upstream_cache_read_tokens?: number
+	cache_billing_ratio?: number
+	upstream_total_cost?: number
+	upstream_model?: string | null
   upstream_response_model?: string | null
   upstream_model_mismatch?: boolean | null
   model_mapping_chain?: string | null
@@ -1812,6 +1816,7 @@ export interface DashboardStats {
   total_cache_read_tokens: number
   total_tokens: number
   total_cost: number // 累计标准计费
+  total_upstream_cost: number // 累计上游口径标准计费
   total_actual_cost: number // 累计实际扣除
   total_account_cost: number // 累计账号成本
 
@@ -1823,6 +1828,7 @@ export interface DashboardStats {
   today_cache_read_tokens: number
   today_tokens: number
   today_cost: number // 今日标准计费
+  today_upstream_cost: number // 今日上游口径标准计费
   today_actual_cost: number // 今日实际扣除
   today_account_cost: number // 今日账号成本
 
@@ -1865,6 +1871,10 @@ export interface TrendDataPoint {
   total_tokens: number
   cost: number // 标准计费
   actual_cost: number // 实际扣除
+  upstream_input_tokens?: number
+  upstream_cache_read_tokens?: number
+  upstream_cost?: number
+  reclassified_cache_tokens?: number
 }
 
 export interface ModelStat {
@@ -1878,6 +1888,10 @@ export interface ModelStat {
   cost: number // 标准计费
   actual_cost: number // 实际扣除
   account_cost?: number // 账号成本（仅管理员接口返回）
+  upstream_input_tokens?: number
+  upstream_cache_read_tokens?: number
+  upstream_cost?: number
+  reclassified_cache_tokens?: number
 }
 
 export interface EndpointStat {
@@ -1886,6 +1900,9 @@ export interface EndpointStat {
   total_tokens: number
   cost: number
   actual_cost: number
+  upstream_total_tokens?: number
+  upstream_cost?: number
+  reclassified_cache_tokens?: number
 }
 
 export interface GroupStat {
@@ -1896,6 +1913,9 @@ export interface GroupStat {
   cost: number // 标准计费
   actual_cost: number // 实际扣除
   account_cost?: number // 账号成本（仅管理员接口返回）
+  upstream_total_tokens?: number
+  upstream_cost?: number
+  reclassified_cache_tokens?: number
 }
 
 export interface UserBreakdownItem {

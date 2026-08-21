@@ -407,6 +407,20 @@ func (_c *UsageLogCreate) SetNillableActualCost(v *float64) *UsageLogCreate {
 	return _c
 }
 
+// SetUpstreamTotalCost sets the "upstream_total_cost" field.
+func (_c *UsageLogCreate) SetUpstreamTotalCost(v float64) *UsageLogCreate {
+	_c.mutation.SetUpstreamTotalCost(v)
+	return _c
+}
+
+// SetNillableUpstreamTotalCost sets the "upstream_total_cost" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableUpstreamTotalCost(v *float64) *UsageLogCreate {
+	if v != nil {
+		_c.SetUpstreamTotalCost(*v)
+	}
+	return _c
+}
+
 // SetRateMultiplier sets the "rate_multiplier" field.
 func (_c *UsageLogCreate) SetRateMultiplier(v float64) *UsageLogCreate {
 	_c.mutation.SetRateMultiplier(v)
@@ -799,6 +813,10 @@ func (_c *UsageLogCreate) defaults() {
 		v := usagelog.DefaultActualCost
 		_c.mutation.SetActualCost(v)
 	}
+	if _, ok := _c.mutation.UpstreamTotalCost(); !ok {
+		v := usagelog.DefaultUpstreamTotalCost
+		_c.mutation.SetUpstreamTotalCost(v)
+	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		v := usagelog.DefaultRateMultiplier
 		_c.mutation.SetRateMultiplier(v)
@@ -934,6 +952,9 @@ func (_c *UsageLogCreate) check() error {
 	}
 	if _, ok := _c.mutation.ActualCost(); !ok {
 		return &ValidationError{Name: "actual_cost", err: errors.New(`ent: missing required field "UsageLog.actual_cost"`)}
+	}
+	if _, ok := _c.mutation.UpstreamTotalCost(); !ok {
+		return &ValidationError{Name: "upstream_total_cost", err: errors.New(`ent: missing required field "UsageLog.upstream_total_cost"`)}
 	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		return &ValidationError{Name: "rate_multiplier", err: errors.New(`ent: missing required field "UsageLog.rate_multiplier"`)}
@@ -1129,6 +1150,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ActualCost(); ok {
 		_spec.SetField(usagelog.FieldActualCost, field.TypeFloat64, value)
 		_node.ActualCost = value
+	}
+	if value, ok := _c.mutation.UpstreamTotalCost(); ok {
+		_spec.SetField(usagelog.FieldUpstreamTotalCost, field.TypeFloat64, value)
+		_node.UpstreamTotalCost = value
 	}
 	if value, ok := _c.mutation.RateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)
@@ -1860,6 +1885,24 @@ func (u *UsageLogUpsert) UpdateActualCost() *UsageLogUpsert {
 // AddActualCost adds v to the "actual_cost" field.
 func (u *UsageLogUpsert) AddActualCost(v float64) *UsageLogUpsert {
 	u.Add(usagelog.FieldActualCost, v)
+	return u
+}
+
+// SetUpstreamTotalCost sets the "upstream_total_cost" field.
+func (u *UsageLogUpsert) SetUpstreamTotalCost(v float64) *UsageLogUpsert {
+	u.Set(usagelog.FieldUpstreamTotalCost, v)
+	return u
+}
+
+// UpdateUpstreamTotalCost sets the "upstream_total_cost" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateUpstreamTotalCost() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldUpstreamTotalCost)
+	return u
+}
+
+// AddUpstreamTotalCost adds v to the "upstream_total_cost" field.
+func (u *UsageLogUpsert) AddUpstreamTotalCost(v float64) *UsageLogUpsert {
+	u.Add(usagelog.FieldUpstreamTotalCost, v)
 	return u
 }
 
@@ -2855,6 +2898,27 @@ func (u *UsageLogUpsertOne) AddActualCost(v float64) *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) UpdateActualCost() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateActualCost()
+	})
+}
+
+// SetUpstreamTotalCost sets the "upstream_total_cost" field.
+func (u *UsageLogUpsertOne) SetUpstreamTotalCost(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamTotalCost(v)
+	})
+}
+
+// AddUpstreamTotalCost adds v to the "upstream_total_cost" field.
+func (u *UsageLogUpsertOne) AddUpstreamTotalCost(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddUpstreamTotalCost(v)
+	})
+}
+
+// UpdateUpstreamTotalCost sets the "upstream_total_cost" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateUpstreamTotalCost() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamTotalCost()
 	})
 }
 
@@ -4074,6 +4138,27 @@ func (u *UsageLogUpsertBulk) AddActualCost(v float64) *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) UpdateActualCost() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateActualCost()
+	})
+}
+
+// SetUpstreamTotalCost sets the "upstream_total_cost" field.
+func (u *UsageLogUpsertBulk) SetUpstreamTotalCost(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamTotalCost(v)
+	})
+}
+
+// AddUpstreamTotalCost adds v to the "upstream_total_cost" field.
+func (u *UsageLogUpsertBulk) AddUpstreamTotalCost(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddUpstreamTotalCost(v)
+	})
+}
+
+// UpdateUpstreamTotalCost sets the "upstream_total_cost" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateUpstreamTotalCost() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamTotalCost()
 	})
 }
 

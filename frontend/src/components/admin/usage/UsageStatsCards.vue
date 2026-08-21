@@ -56,6 +56,10 @@
             </span>
           </span>
         </p>
+        <p v-if="hasUpstreamAudit" class="mt-1 text-[11px] text-cyan-600 dark:text-cyan-400">
+          {{ t('usage.upstreamInput') }} {{ formatTokens(upstreamPromptTokens) }} ·
+          {{ t('usage.upstreamCacheRead') }} {{ formatTokens(upstreamCacheTokens) }}
+        </p>
       </div>
     </div>
     <div class="card p-4 flex items-center gap-3">
@@ -75,6 +79,9 @@
           <span>
             {{ t('usage.standardCost') }}
             <span :class="{ 'line-through': strikeStandardCost }">${{ (stats?.total_cost || 0).toFixed(4) }}</span>
+          </span>
+          <span v-if="hasUpstreamAudit" class="text-cyan-600 dark:text-cyan-400">
+            · {{ t('usage.upstreamStandardCost') }} ${{ upstreamCost.toFixed(4) }}
           </span>
         </p>
       </div>
@@ -112,6 +119,11 @@ const totalAccountCost = computed(() => {
 })
 const showAccountCost = computed(() => props.showAccountCost)
 const strikeStandardCost = computed(() => props.strikeStandardCost)
+const adminStats = computed(() => props.stats as AdminUsageStatsResponse | null)
+const upstreamPromptTokens = computed(() => Number(adminStats.value?.total_upstream_input_tokens || 0))
+const upstreamCacheTokens = computed(() => Number(adminStats.value?.total_upstream_cache_read_tokens || 0))
+const upstreamCost = computed(() => Number(adminStats.value?.total_upstream_cost || 0))
+const hasUpstreamAudit = computed(() => upstreamPromptTokens.value > 0 || upstreamCacheTokens.value > 0 || upstreamCost.value > 0)
 
 const formatDuration = (ms: number) =>
   ms < 1000 ? `${ms.toFixed(0)}ms` : `${(ms / 1000).toFixed(2)}s`

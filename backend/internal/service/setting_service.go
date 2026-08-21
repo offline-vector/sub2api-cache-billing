@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync/atomic"
 
@@ -149,6 +150,10 @@ type SettingService struct {
 	// instance owns its own cache, no shared package-level state.
 	openAIQuotaAutoPauseSettingsCache atomic.Value // *cachedOpenAIQuotaAutoPauseSettings
 	openAIQuotaAutoPauseSettingsSF    singleflight.Group
+	openAICacheBillingRatioBits       atomic.Uint64
+	openAICacheBillingRatioLoaded     atomic.Bool
+	openAICacheBillingRatioRetryAt    atomic.Int64
+	openAICacheBillingRatioSF         singleflight.Group
 
 	channelMonitorRuntimeListenersMu sync.Mutex
 	channelMonitorRuntimeListeners   []func()
@@ -282,10 +287,12 @@ const (
 
 // NewSettingService 创建系统设置服务实例
 func NewSettingService(settingRepo SettingRepository, cfg *config.Config) *SettingService {
-	return &SettingService{
+	svc := &SettingService{
 		settingRepo: settingRepo,
 		cfg:         cfg,
 	}
+	svc.openAICacheBillingRatioBits.Store(math.Float64bits(svc.configuredOpenAICacheBillingRatio()))
+	return svc
 }
 
 // SetDefaultSubscriptionGroupReader injects an optional group reader for default subscription validation.

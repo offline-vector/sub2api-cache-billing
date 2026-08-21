@@ -57,6 +57,7 @@ type DashboardStats struct {
 	TotalCacheReadTokens     int64   `json:"total_cache_read_tokens"`
 	TotalTokens              int64   `json:"total_tokens"`
 	TotalCost                float64 `json:"total_cost"`         // 累计标准计费
+	TotalUpstreamCost        float64 `json:"total_upstream_cost"` // 累计上游口径标准计费
 	TotalActualCost          float64 `json:"total_actual_cost"`  // 累计实际扣除
 	TotalAccountCost         float64 `json:"total_account_cost"` // 累计账号成本
 
@@ -68,6 +69,7 @@ type DashboardStats struct {
 	TodayCacheReadTokens     int64   `json:"today_cache_read_tokens"`
 	TodayTokens              int64   `json:"today_tokens"`
 	TodayCost                float64 `json:"today_cost"`         // 今日标准计费
+	TodayUpstreamCost        float64 `json:"today_upstream_cost"` // 今日上游口径标准计费
 	TodayActualCost          float64 `json:"today_actual_cost"`  // 今日实际扣除
 	TodayAccountCost         float64 `json:"today_account_cost"` // 今日账号成本
 
@@ -81,38 +83,49 @@ type DashboardStats struct {
 
 // TrendDataPoint represents a single point in trend data
 type TrendDataPoint struct {
-	Date                string  `json:"date"`
-	Requests            int64   `json:"requests"`
-	InputTokens         int64   `json:"input_tokens"`
-	OutputTokens        int64   `json:"output_tokens"`
-	CacheCreationTokens int64   `json:"cache_creation_tokens"`
-	CacheReadTokens     int64   `json:"cache_read_tokens"`
-	TotalTokens         int64   `json:"total_tokens"`
-	Cost                float64 `json:"cost"`        // 标准计费
-	ActualCost          float64 `json:"actual_cost"` // 实际扣除
+	Date                    string  `json:"date"`
+	Requests                int64   `json:"requests"`
+	InputTokens             int64   `json:"input_tokens"`
+	OutputTokens            int64   `json:"output_tokens"`
+	CacheCreationTokens     int64   `json:"cache_creation_tokens"`
+	CacheReadTokens         int64   `json:"cache_read_tokens"`
+	TotalTokens             int64   `json:"total_tokens"`
+	Cost                    float64 `json:"cost"`        // 标准计费
+	ActualCost              float64 `json:"actual_cost"` // 实际扣除
+	UpstreamInputTokens     int64   `json:"upstream_input_tokens,omitempty"`
+	UpstreamCacheReadTokens int64   `json:"upstream_cache_read_tokens,omitempty"`
+	UpstreamCost            float64 `json:"upstream_cost,omitempty"`
+	ReclassifiedCacheTokens int64   `json:"reclassified_cache_tokens,omitempty"`
 }
 
 // ModelStat represents usage statistics for a single model
 type ModelStat struct {
-	Model               string  `json:"model"`
-	Requests            int64   `json:"requests"`
-	InputTokens         int64   `json:"input_tokens"`
-	OutputTokens        int64   `json:"output_tokens"`
-	CacheCreationTokens int64   `json:"cache_creation_tokens"`
-	CacheReadTokens     int64   `json:"cache_read_tokens"`
-	TotalTokens         int64   `json:"total_tokens"`
-	Cost                float64 `json:"cost"`         // 标准计费
-	ActualCost          float64 `json:"actual_cost"`  // 实际扣除
-	AccountCost         float64 `json:"account_cost"` // 账号成本
+	Model                   string  `json:"model"`
+	Requests                int64   `json:"requests"`
+	InputTokens             int64   `json:"input_tokens"`
+	OutputTokens            int64   `json:"output_tokens"`
+	CacheCreationTokens     int64   `json:"cache_creation_tokens"`
+	CacheReadTokens         int64   `json:"cache_read_tokens"`
+	TotalTokens             int64   `json:"total_tokens"`
+	Cost                    float64 `json:"cost"`         // 标准计费
+	ActualCost              float64 `json:"actual_cost"`  // 实际扣除
+	AccountCost             float64 `json:"account_cost"` // 账号成本
+	UpstreamInputTokens     int64   `json:"upstream_input_tokens,omitempty"`
+	UpstreamCacheReadTokens int64   `json:"upstream_cache_read_tokens,omitempty"`
+	UpstreamCost            float64 `json:"upstream_cost,omitempty"`
+	ReclassifiedCacheTokens int64   `json:"reclassified_cache_tokens,omitempty"`
 }
 
 // EndpointStat represents usage statistics for a single request endpoint.
 type EndpointStat struct {
-	Endpoint    string  `json:"endpoint"`
-	Requests    int64   `json:"requests"`
-	TotalTokens int64   `json:"total_tokens"`
-	Cost        float64 `json:"cost"`        // 标准计费
-	ActualCost  float64 `json:"actual_cost"` // 实际扣除
+	Endpoint                string  `json:"endpoint"`
+	Requests                int64   `json:"requests"`
+	TotalTokens             int64   `json:"total_tokens"`
+	Cost                    float64 `json:"cost"`        // 标准计费
+	ActualCost              float64 `json:"actual_cost"` // 实际扣除
+	UpstreamTotalTokens     int64   `json:"upstream_total_tokens,omitempty"`
+	UpstreamCost            float64 `json:"upstream_cost,omitempty"`
+	ReclassifiedCacheTokens int64   `json:"reclassified_cache_tokens,omitempty"`
 }
 
 // GroupUsageSummary represents today's, yesterday's, and cumulative cost for a single group.
@@ -125,13 +138,16 @@ type GroupUsageSummary struct {
 
 // GroupStat represents usage statistics for a single group
 type GroupStat struct {
-	GroupID     int64   `json:"group_id"`
-	GroupName   string  `json:"group_name"`
-	Requests    int64   `json:"requests"`
-	TotalTokens int64   `json:"total_tokens"`
-	Cost        float64 `json:"cost"`         // 标准计费
-	ActualCost  float64 `json:"actual_cost"`  // 实际扣除
-	AccountCost float64 `json:"account_cost"` // 账号成本
+	GroupID                 int64   `json:"group_id"`
+	GroupName               string  `json:"group_name"`
+	Requests                int64   `json:"requests"`
+	TotalTokens             int64   `json:"total_tokens"`
+	Cost                    float64 `json:"cost"`         // 标准计费
+	ActualCost              float64 `json:"actual_cost"`  // 实际扣除
+	AccountCost             float64 `json:"account_cost"` // 账号成本
+	UpstreamTotalTokens     int64   `json:"upstream_total_tokens,omitempty"`
+	UpstreamCost            float64 `json:"upstream_cost,omitempty"`
+	ReclassifiedCacheTokens int64   `json:"reclassified_cache_tokens,omitempty"`
 }
 
 // UserUsageTrendPoint represents user usage trend data point
@@ -289,20 +305,24 @@ type UsageLogFilters struct {
 
 // UsageStats represents usage statistics
 type UsageStats struct {
-	TotalRequests            int64          `json:"total_requests"`
-	TotalInputTokens         int64          `json:"total_input_tokens"`
-	TotalOutputTokens        int64          `json:"total_output_tokens"`
-	TotalCacheTokens         int64          `json:"total_cache_tokens"`
-	TotalCacheCreationTokens int64          `json:"total_cache_creation_tokens"`
-	TotalCacheReadTokens     int64          `json:"total_cache_read_tokens"`
-	TotalTokens              int64          `json:"total_tokens"`
-	TotalCost                float64        `json:"total_cost"`
-	TotalActualCost          float64        `json:"total_actual_cost"`
-	TotalAccountCost         *float64       `json:"total_account_cost,omitempty"`
-	AverageDurationMs        float64        `json:"average_duration_ms"`
-	Endpoints                []EndpointStat `json:"endpoints,omitempty"`
-	UpstreamEndpoints        []EndpointStat `json:"upstream_endpoints,omitempty"`
-	EndpointPaths            []EndpointStat `json:"endpoint_paths,omitempty"`
+	TotalRequests                int64          `json:"total_requests"`
+	TotalInputTokens             int64          `json:"total_input_tokens"`
+	TotalOutputTokens            int64          `json:"total_output_tokens"`
+	TotalCacheTokens             int64          `json:"total_cache_tokens"`
+	TotalCacheCreationTokens     int64          `json:"total_cache_creation_tokens"`
+	TotalCacheReadTokens         int64          `json:"total_cache_read_tokens"`
+	TotalTokens                  int64          `json:"total_tokens"`
+	TotalCost                    float64        `json:"total_cost"`
+	TotalActualCost              float64        `json:"total_actual_cost"`
+	TotalAccountCost             *float64       `json:"total_account_cost,omitempty"`
+	TotalUpstreamInputTokens     int64          `json:"total_upstream_input_tokens,omitempty"`
+	TotalUpstreamCacheReadTokens int64          `json:"total_upstream_cache_read_tokens,omitempty"`
+	TotalUpstreamCost            float64        `json:"total_upstream_cost,omitempty"`
+	TotalReclassifiedCacheTokens int64          `json:"total_reclassified_cache_tokens,omitempty"`
+	AverageDurationMs            float64        `json:"average_duration_ms"`
+	Endpoints                    []EndpointStat `json:"endpoints,omitempty"`
+	UpstreamEndpoints            []EndpointStat `json:"upstream_endpoints,omitempty"`
+	EndpointPaths                []EndpointStat `json:"endpoint_paths,omitempty"`
 }
 
 // PlatformUsage 表示某用户/某 API key 在单个"有效平台"维度的用量明细。

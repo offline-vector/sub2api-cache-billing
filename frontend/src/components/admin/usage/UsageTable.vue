@@ -143,17 +143,17 @@
               <div class="flex items-center gap-2">
                 <div class="inline-flex items-center gap-1">
                   <Icon name="arrowDown" size="sm" class="h-3.5 w-3.5 text-emerald-500" />
-                  <span class="font-medium text-gray-900 dark:text-white">{{ row.input_tokens?.toLocaleString() || 0 }}</span>
+                  <span class="font-medium text-gray-900 dark:text-white">{{ displayInputTokens(row).toLocaleString() }}</span>
                 </div>
                 <div class="inline-flex items-center gap-1">
                   <Icon name="arrowUp" size="sm" class="h-3.5 w-3.5 text-violet-500" />
                   <span class="font-medium text-gray-900 dark:text-white">{{ row.output_tokens?.toLocaleString() || 0 }}</span>
                 </div>
               </div>
-              <div v-if="row.cache_read_tokens > 0 || row.cache_creation_tokens > 0" class="flex items-center gap-2">
-                <div v-if="row.cache_read_tokens > 0" class="inline-flex items-center gap-1">
+              <div v-if="displayCacheReadTokens(row) > 0 || row.cache_creation_tokens > 0" class="flex items-center gap-2">
+                <div v-if="displayCacheReadTokens(row) > 0" class="inline-flex items-center gap-1">
                   <svg class="h-3.5 w-3.5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
-                  <span class="font-medium text-sky-600 dark:text-sky-400">{{ formatCacheTokens(row.cache_read_tokens) }}</span>
+                  <span class="font-medium text-sky-600 dark:text-sky-400">{{ formatCacheTokens(displayCacheReadTokens(row)) }}</span>
                 </div>
                 <div v-if="row.cache_creation_tokens > 0" class="inline-flex items-center gap-1">
                   <svg class="h-3.5 w-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -161,6 +161,9 @@
                   <span v-if="row.cache_creation_1h_tokens > 0" class="inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-orange-100 text-orange-600 ring-1 ring-inset ring-orange-200 dark:bg-orange-500/20 dark:text-orange-400 dark:ring-orange-500/30">1h</span>
                   <span v-if="row.cache_ttl_overridden" :title="t('usage.cacheTtlOverriddenHint')" class="inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-rose-100 text-rose-600 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:ring-rose-500/30 cursor-help">R</span>
                 </div>
+              </div>
+              <div v-if="showAccountBilling && cacheStrategyApplied(row)" class="text-[10px] text-gray-400 dark:text-gray-500">
+                C {{ t('admin.usage.inputTokens') }} {{ row.input_tokens.toLocaleString() }} · {{ t('admin.usage.cacheReadTokens') }} {{ row.cache_read_tokens.toLocaleString() }}
               </div>
               <div v-if="hasImageInputTokens(row)" class="flex items-center gap-2">
                 <div class="inline-flex items-center gap-1">
@@ -191,7 +194,9 @@
         <template #cell-cost="{ row }">
           <div class="text-sm">
             <div class="flex items-center gap-1.5">
-              <span class="font-medium text-green-600 dark:text-green-400">${{ row.actual_cost?.toFixed(6) || '0.000000' }}</span>
+              <span class="font-medium text-green-600 dark:text-green-400">
+                {{ showAccountBilling ? 'A ' : '' }}${{ (showAccountBilling ? accountBilled(row) : row.actual_cost)?.toFixed(6) || '0.000000' }}
+              </span>
               <span
                 v-if="row.long_context_billing_applied"
                 data-testid="long-context-billing-marker"
@@ -208,8 +213,9 @@
                 </div>
               </div>
             </div>
-            <div v-if="showAccountBilling && row.account_rate_multiplier != null" class="mt-0.5 text-[11px] text-orange-500 dark:text-orange-400">
-              A ${{ accountBilled(row).toFixed(6) }}
+            <div v-if="showAccountBilling" class="mt-0.5 text-[11px] text-orange-500 dark:text-orange-400">
+              U ${{ row.actual_cost?.toFixed(6) || '0.000000' }}
+              <span v-if="cacheStrategyApplied(row)" class="ml-1 text-gray-400">· {{ formatRatio(row.cache_billing_ratio) }}</span>
             </div>
           </div>
         </template>
@@ -347,6 +353,29 @@
               <span class="text-gray-400">{{ t('admin.usage.cacheReadTokens') }}</span>
               <span class="font-medium text-white">{{ tokenTooltipData.cache_read_tokens.toLocaleString() }}</span>
             </div>
+            <template v-if="tokenTooltipData && showAccountBilling && cacheStrategyApplied(tokenTooltipData)">
+              <div class="mt-2 border-t border-gray-700 pt-1.5 text-xs font-semibold text-cyan-300">{{ t('admin.usage.cacheBillingComparison') }}</div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('admin.usage.upstreamInputTotal') }}</span>
+                <span class="font-medium text-white">{{ upstreamInputTotal(tokenTooltipData).toLocaleString() }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('admin.usage.upstreamCacheRead') }}</span>
+                <span class="font-medium text-cyan-300">{{ upstreamCacheRead(tokenTooltipData).toLocaleString() }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('admin.usage.customerCacheRead') }}</span>
+                <span class="font-medium text-sky-300">{{ tokenTooltipData.cache_read_tokens.toLocaleString() }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('admin.usage.reclassifiedInput') }}</span>
+                <span class="font-medium text-amber-300">{{ reclassifiedCacheTokens(tokenTooltipData).toLocaleString() }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('admin.usage.appliedCacheRatio') }}</span>
+                <span class="font-medium text-white">{{ formatRatio(tokenTooltipData.cache_billing_ratio) }}</span>
+              </div>
+            </template>
           </div>
           <div class="flex items-center justify-between gap-6 border-t border-gray-700 pt-1.5">
             <span class="text-gray-400">{{ t('usage.totalTokens') }}</span>
@@ -465,9 +494,19 @@
             <span class="font-semibold text-blue-400">{{ formatMultiplier(tooltipData?.rate_multiplier || 1) }}x</span>
           </div>
           <div class="flex items-center justify-between gap-6">
-            <span class="text-gray-400">{{ t('usage.original') }}</span>
+            <span class="text-gray-400">{{ t('admin.usage.customerStandardCost') }}</span>
             <span class="font-medium text-white">${{ tooltipData?.total_cost?.toFixed(6) || '0.000000' }}</span>
           </div>
+          <template v-if="tooltipData && showAccountBilling">
+            <div class="flex items-center justify-between gap-6">
+              <span class="text-gray-400">{{ t('admin.usage.upstreamMeteredCost') }}</span>
+              <span class="font-medium text-cyan-300">${{ upstreamMeteredCost(tooltipData).toFixed(6) }}</span>
+            </div>
+            <div v-if="cacheStrategyApplied(tooltipData)" class="flex items-center justify-between gap-6">
+              <span class="text-gray-400">{{ t('admin.usage.billingPolicyDelta') }}</span>
+              <span class="font-medium text-amber-300">+${{ billingPolicyDelta(tooltipData).toFixed(6) }}</span>
+            </div>
+          </template>
           <div class="flex items-center justify-between gap-6">
             <span class="text-gray-400">{{ t('usage.userBilled') }}</span>
             <span class="font-semibold text-green-400">${{ tooltipData?.actual_cost?.toFixed(6) || '0.000000' }}</span>
@@ -541,6 +580,36 @@ function accountBilled(row: { total_cost?: number | null; account_stats_cost?: n
   const result = base * (row.account_rate_multiplier ?? 1)
   return Number.isNaN(result) ? 0 : result
 }
+
+const cacheStrategyApplied = (row: AdminUsageLog): boolean =>
+  Number.isFinite(row.cache_billing_ratio) && (row.cache_billing_ratio ?? 1) < 0.999999
+
+const upstreamInputTotal = (row: AdminUsageLog): number =>
+  cacheStrategyApplied(row) ? Math.max(0, row.upstream_input_tokens ?? 0) :
+    Math.max(0, row.input_tokens + row.cache_creation_tokens + row.cache_read_tokens)
+
+const upstreamCacheRead = (row: AdminUsageLog): number =>
+  cacheStrategyApplied(row) ? Math.max(0, row.upstream_cache_read_tokens ?? 0) : Math.max(0, row.cache_read_tokens)
+
+const upstreamUncachedInput = (row: AdminUsageLog): number =>
+  Math.max(0, upstreamInputTotal(row) - row.cache_creation_tokens - upstreamCacheRead(row))
+
+const displayInputTokens = (row: AdminUsageLog): number =>
+  showAccountBilling && cacheStrategyApplied(row) ? upstreamUncachedInput(row) : Math.max(0, row.input_tokens)
+
+const displayCacheReadTokens = (row: AdminUsageLog): number =>
+  showAccountBilling && cacheStrategyApplied(row) ? upstreamCacheRead(row) : Math.max(0, row.cache_read_tokens)
+
+const reclassifiedCacheTokens = (row: AdminUsageLog): number =>
+  Math.max(0, upstreamCacheRead(row) - row.cache_read_tokens)
+
+const upstreamMeteredCost = (row: AdminUsageLog): number =>
+  cacheStrategyApplied(row) ? Math.max(0, row.upstream_total_cost ?? row.total_cost) : Math.max(0, row.total_cost)
+
+const billingPolicyDelta = (row: AdminUsageLog): number =>
+  Math.max(0, row.total_cost - upstreamMeteredCost(row))
+
+const formatRatio = (ratio?: number): string => `${Math.round((ratio ?? 1) * 100)}%`
 
 
 import DataTable from '@/components/common/DataTable.vue'

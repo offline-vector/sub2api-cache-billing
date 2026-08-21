@@ -624,6 +624,27 @@ func (_u *UsageLogUpdate) AddActualCost(v float64) *UsageLogUpdate {
 	return _u
 }
 
+// SetUpstreamTotalCost sets the "upstream_total_cost" field.
+func (_u *UsageLogUpdate) SetUpstreamTotalCost(v float64) *UsageLogUpdate {
+	_u.mutation.ResetUpstreamTotalCost()
+	_u.mutation.SetUpstreamTotalCost(v)
+	return _u
+}
+
+// SetNillableUpstreamTotalCost sets the "upstream_total_cost" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableUpstreamTotalCost(v *float64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetUpstreamTotalCost(*v)
+	}
+	return _u
+}
+
+// AddUpstreamTotalCost adds value to the "upstream_total_cost" field.
+func (_u *UsageLogUpdate) AddUpstreamTotalCost(v float64) *UsageLogUpdate {
+	_u.mutation.AddUpstreamTotalCost(v)
+	return _u
+}
+
 // SetRateMultiplier sets the "rate_multiplier" field.
 func (_u *UsageLogUpdate) SetRateMultiplier(v float64) *UsageLogUpdate {
 	_u.mutation.ResetRateMultiplier()
@@ -1344,6 +1365,12 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedActualCost(); ok {
 		_spec.AddField(usagelog.FieldActualCost, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.UpstreamTotalCost(); ok {
+		_spec.SetField(usagelog.FieldUpstreamTotalCost, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamTotalCost(); ok {
+		_spec.AddField(usagelog.FieldUpstreamTotalCost, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.RateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)
@@ -2219,6 +2246,27 @@ func (_u *UsageLogUpdateOne) AddActualCost(v float64) *UsageLogUpdateOne {
 	return _u
 }
 
+// SetUpstreamTotalCost sets the "upstream_total_cost" field.
+func (_u *UsageLogUpdateOne) SetUpstreamTotalCost(v float64) *UsageLogUpdateOne {
+	_u.mutation.ResetUpstreamTotalCost()
+	_u.mutation.SetUpstreamTotalCost(v)
+	return _u
+}
+
+// SetNillableUpstreamTotalCost sets the "upstream_total_cost" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableUpstreamTotalCost(v *float64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetUpstreamTotalCost(*v)
+	}
+	return _u
+}
+
+// AddUpstreamTotalCost adds value to the "upstream_total_cost" field.
+func (_u *UsageLogUpdateOne) AddUpstreamTotalCost(v float64) *UsageLogUpdateOne {
+	_u.mutation.AddUpstreamTotalCost(v)
+	return _u
+}
+
 // SetRateMultiplier sets the "rate_multiplier" field.
 func (_u *UsageLogUpdateOne) SetRateMultiplier(v float64) *UsageLogUpdateOne {
 	_u.mutation.ResetRateMultiplier()
@@ -2969,6 +3017,12 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if value, ok := _u.mutation.AddedActualCost(); ok {
 		_spec.AddField(usagelog.FieldActualCost, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.UpstreamTotalCost(); ok {
+		_spec.SetField(usagelog.FieldUpstreamTotalCost, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamTotalCost(); ok {
+		_spec.AddField(usagelog.FieldUpstreamTotalCost, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.RateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)

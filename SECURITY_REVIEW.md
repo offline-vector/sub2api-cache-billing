@@ -19,6 +19,11 @@ claim that the entire upstream application is vulnerability-free.
 - Failed/cancelled/incomplete terminal events are not rewritten.
 - Raw upstream metering and the applied ratio are stored per usage row and exposed
   only through the administrator API.
+- Runtime reads are atomic after one bounded database load. Administrator saves
+  update the in-memory value only after the settings write succeeds.
+- Customer balance/API-key quota and provider account quota are carried as
+  separate command values, preventing account quota from inheriting the
+  customer cache ratio.
 - Database constraints enforce a finite positive ratio no greater than one.
 
 ## Reviewed Risk Areas
@@ -28,6 +33,7 @@ claim that the entire upstream application is vulnerability-free.
 - passthrough HTTP/SSE paths
 - Responses WebSocket downstream writes
 - manual SQL single, batched, and best-effort insert column ordering
+- hourly/daily aggregates, historical fallback, and administrator-only dual views
 - Ent schema generation and migration compatibility
 - image, video, audio, cyber-policy, and non-OpenAI exclusions
 - environment-variable reachability
@@ -57,12 +63,15 @@ Run before every fork release:
 ```bash
 cd backend
 go generate ./ent
-git diff --exit-code -- ent
+# Run generation twice and verify the second pass produces no file changes.
 go test ./...
-go test -race ./internal/service -run 'TestApplyOpenAICacheBillingRatio|TestRewriteOpenAICacheUsage|TestClientVisibleCacheMatchesBillableCache|TestOpenAICacheBillingEligibility|TestOpenAIWSV2Passthrough'
-go test -race ./internal/repository -run 'TestUsageLogRepositoryCreate|TestPrepareUsageLogInsert|TestUsageLogInsertQueries|TestScanUsageLogRequestTypeAndLegacyFallback'
+go test -race ./internal/service -run 'OpenAICache|CacheBilling|AccountQuota|BuildUsageBillingCommand'
+go test -race ./internal/repository -run 'UsageLog'
+go vet ./...
+go build ./cmd/server
 govulncheck ./...
 ```
 
-Also run the existing frontend CI and secret scan the final Git tree. Never commit
-production API keys, database URLs, object-storage credentials, or SSH material.
+Also run `vue-tsc --noEmit`, the full frontend Vitest suite, the Vite production
+build, and a secret scan of the final Git tree. Never commit production API keys,
+database URLs, object-storage credentials, or SSH material.

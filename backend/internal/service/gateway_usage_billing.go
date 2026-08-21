@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"log/slog"
+	"math"
 	"strings"
 	"time"
 
@@ -80,8 +81,22 @@ type postUsageBillingParams struct {
 	RequestPayloadHash    string
 	IsSubscriptionBill    bool
 	AccountRateMultiplier float64
-	APIKeyService         APIKeyQuotaUpdater
-	Platform              string // 来自 APIKey 关联 Group 的平台标识
+	// AccountStandardCost is the upstream-metered standard cost used only for
+	// account quota/cost accounting. Nil preserves the legacy Cost.TotalCost
+	// behavior for platforms without a separate upstream audit snapshot.
+	AccountStandardCost *float64
+	APIKeyService       APIKeyQuotaUpdater
+	Platform            string // 来自 APIKey 关联 Group 的平台标识
+}
+
+func (p *postUsageBillingParams) accountStandardCost() float64 {
+	if p == nil || p.Cost == nil {
+		return 0
+	}
+	if p.AccountStandardCost != nil {
+		return math.Max(*p.AccountStandardCost, 0)
+	}
+	return p.Cost.TotalCost
 }
 
 // PlatformFromAPIKey 从 APIKey 关联的 Group 推导 platform 名称。
@@ -171,7 +186,7 @@ func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *bill
 	}
 
 	if p.shouldUpdateAccountQuota() {
-		accountCost := cost.TotalCost * p.AccountRateMultiplier
+		accountCost := p.accountStandardCost() * p.AccountRateMultiplier
 		if err := deps.accountRepo.IncrementQuotaUsed(billingCtx, p.Account.ID, accountCost); err != nil {
 			slog.Error("increment account quota used failed", "account_id", p.Account.ID, "cost", accountCost, "error", err)
 		}
@@ -324,7 +339,7 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 		cmd.APIKeyRateLimitCost = p.Cost.ActualCost
 	}
 	if p.shouldUpdateAccountQuota() {
-		cmd.AccountQuotaCost = p.Cost.TotalCost * p.AccountRateMultiplier
+		cmd.AccountQuotaCost = p.accountStandardCost() * p.AccountRateMultiplier
 	}
 
 	cmd.Normalize()
@@ -501,7 +516,7 @@ func notifyAccountQuota(p *postUsageBillingParams, deps *billingDeps, result *Us
 		)
 		return
 	}
-	accountCost := p.Cost.TotalCost * p.AccountRateMultiplier
+	accountCost := p.accountStandardCost() * p.AccountRateMultiplier
 	var quotaState *AccountQuotaState
 	if result != nil {
 		quotaState = result.QuotaState

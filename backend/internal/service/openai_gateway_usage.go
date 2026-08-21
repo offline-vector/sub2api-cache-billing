@@ -274,6 +274,39 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		}
 	}
 
+	// Recalculate the same request against the provider-reported token buckets.
+	// This counterfactual uses the final billing model/tier selected above, so the
+	// admin audit can show an exact policy delta without guessing unit prices.
+	upstreamMeteredCost := cost
+	if cacheBilling.AppliedRatio < defaultOpenAICacheBillingRatio {
+		upstreamTokens := tokens
+		upstreamTokens.InputTokens = cacheBilling.UpstreamInputTokens -
+			cacheBilling.BillableCacheCreationTokens - cacheBilling.UpstreamCacheReadTokens
+		upstreamTokens.CacheReadTokens = cacheBilling.UpstreamCacheReadTokens
+		upstreamMeteredCost, err = s.calculateOpenAIRecordUsageCost(
+			ctx,
+			result,
+			apiKey,
+			billingModels,
+			multiplier,
+			imageMultiplier,
+			videoMultiplier,
+			baseMultiplier,
+			upstreamTokens,
+			serviceTier,
+			longContextBillingGate,
+			pricingAt,
+		)
+		if err != nil {
+			logger.L().With(
+				zap.String("component", "service.openai_gateway"),
+				zap.String("request_id", result.RequestID),
+				zap.Int64("account_id", account.ID),
+			).Warn("openai_usage.upstream_metered_cost_unavailable", zap.Error(err))
+			upstreamMeteredCost = nil
+		}
+	}
+
 	// Determine billing type
 	isSubscriptionBilling := subscription != nil && apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
 	billingType := BillingTypeBalance
@@ -367,6 +400,13 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.ActualCost = cost.ActualCost
 		usageLog.LongContextBillingApplied = cost.LongContextBillingApplied
 	}
+	if upstreamMeteredCost != nil {
+		usageLog.UpstreamTotalCost = upstreamMeteredCost.TotalCost
+	} else if cost != nil {
+		// Preserve a conservative auditable fallback instead of persisting a
+		// misleading zero when counterfactual pricing is temporarily unavailable.
+		usageLog.UpstreamTotalCost = cost.TotalCost
+	}
 	if isVideoUsage && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
 		usageLog.RateMultiplier = videoMultiplier
 	} else if result.ImageCount > 0 && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
@@ -421,12 +461,24 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.SubscriptionID = &subscription.ID
 	}
 
-	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）
+	// 账号统计始终使用上游原始 Token/费用；客户扣费继续使用上面的
+	// billable Token。这样管理员 A 成本和账号额度不会被客户展示比例影响。
 	if apiKey.GroupID != nil {
+		accountTokens := tokens
+		accountStandardCost := cost.TotalCost
+		if upstreamMeteredCost != nil {
+			accountTokens.InputTokens = cacheBilling.UpstreamInputTokens -
+				cacheBilling.BillableCacheCreationTokens - cacheBilling.UpstreamCacheReadTokens
+			accountTokens.CacheReadTokens = cacheBilling.UpstreamCacheReadTokens
+			accountStandardCost = upstreamMeteredCost.TotalCost
+		}
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,
 			account.ID, *apiKey.GroupID, result.UpstreamModel, result.Model,
-			tokens, cost.TotalCost,
+			accountTokens, accountStandardCost,
 		)
+		if usageLog.AccountStatsCost == nil {
+			usageLog.AccountStatsCost = &accountStandardCost
+		}
 	}
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
@@ -444,6 +496,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 
 	billingErr := func() error {
+		accountStandardCost := usageLog.UpstreamTotalCost
 		_, err := applyUsageBilling(ctx, requestID, usageLog, &postUsageBillingParams{
 			Cost:                  cost,
 			User:                  user,
@@ -453,6 +506,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			RequestPayloadHash:    resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
 			IsSubscriptionBill:    isSubscriptionBilling,
 			AccountRateMultiplier: accountRateMultiplier,
+			AccountStandardCost:   &accountStandardCost,
 			APIKeyService:         input.APIKeyService,
 			Platform:              quotaPlatform,
 		}, s.billingDeps(), s.usageBillingRepo)
