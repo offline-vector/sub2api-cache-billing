@@ -81,9 +81,11 @@ back to their legacy values.
 5. Roll back behavior by saving `1.0`. Do not remove
    the audit columns during an incident.
 
-Do not use the official online updater on a custom deployment: it replaces the
-fork image with an upstream image and silently removes this behavior. Point any
-update mechanism at a custom image built from this repository.
+The online updater is pinned to `offline-vector/sub2api-cache-billing` releases,
+so it cannot silently install an official upstream binary. Because the fork is
+private, set a least-privilege `UPDATE_GITHUB_TOKEN` with read-only repository
+contents access. Release asset authentication is sent only to the exact
+`api.github.com` authority and is removed before CDN redirects.
 
 ## Upstream Updates
 

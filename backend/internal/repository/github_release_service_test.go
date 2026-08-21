@@ -133,6 +133,26 @@ func TestGitHubReleaseClientDoesNotAuthorizeDownloads(t *testing.T) {
 	}
 }
 
+func TestGitHubReleaseClientAuthorizesPrivateAssetAPIOnly(t *testing.T) {
+	client := newTestGitHubReleaseClient()
+	client.updateGitHubToken = "update-secret"
+
+	apiReq, err := client.newAssetRequest(context.Background(), "https://api.github.com/repos/test/repo/releases/assets/1")
+	require.NoError(t, err)
+	require.Equal(t, "Bearer update-secret", apiReq.Header.Get("Authorization"))
+	require.Equal(t, "application/octet-stream", apiReq.Header.Get("Accept"))
+
+	cdnReq, err := client.newAssetRequest(context.Background(), "https://objects.githubusercontent.com/private-asset")
+	require.NoError(t, err)
+	require.Empty(t, cdnReq.Header.Get("Authorization"))
+
+	redirected, err := http.NewRequest(http.MethodGet, "https://release-assets.githubusercontent.com/private-asset", nil)
+	require.NoError(t, err)
+	redirected.Header.Set("Authorization", "Bearer update-secret")
+	require.NoError(t, githubAPICheckRedirect(nil)(redirected, []*http.Request{apiReq}))
+	require.Empty(t, redirected.Header.Get("Authorization"))
+}
+
 type githubReleaseRoundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f githubReleaseRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
