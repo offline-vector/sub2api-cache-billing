@@ -324,7 +324,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 				}
 				if rewritten, changed := rewriteOpenAICacheUsageForBilling(
 					[]byte(payload),
-					s.openAICacheBillingRatioForClient(account),
+					s.openAICacheBillingRatioForClient(c.Request.Context(), account),
 				); changed {
 					line = "data: " + string(rewritten)
 				}
@@ -460,7 +460,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	if parsedUsage, ok := extractOpenAIUsageFromJSONBytes(respBody); ok {
 		usage = parsedUsage
 	}
-	respBody, _ = rewriteOpenAICacheUsageForBilling(respBody, s.openAICacheBillingRatioForClient(account))
+	respBody, _ = rewriteOpenAICacheUsageForBilling(respBody, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	responseModel := gjson.GetBytes(respBody, "model").String()
 	if requiresBillableGrokChatUsage(account, billingModel, upstreamModel, responseModel) && !hasBillableGrokChatUsage(usage) {
 		upstreamRequestID := firstNonEmpty(requestID, resp.Header.Get("xai-request-id"))

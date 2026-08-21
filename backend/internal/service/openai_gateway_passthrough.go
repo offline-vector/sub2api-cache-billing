@@ -1683,7 +1683,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			s.parseSSEUsageBytes(dataBytes, usage)
 			if rewrittenData, rewritten := rewriteOpenAICacheUsageForBilling(
 				dataBytes,
-				s.openAICacheBillingRatioForClient(account),
+				s.openAICacheBillingRatioForClient(c.Request.Context(), account),
 			); rewritten {
 				line = "data: " + string(rewrittenData)
 			}
@@ -1831,7 +1831,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 			return nil, fmt.Errorf("restore OpenAI Responses client tools: %w", err)
 		}
 	}
-	body, _ = rewriteOpenAICacheUsageForBilling(body, s.openAICacheBillingRatioForClient(account))
+	body, _ = rewriteOpenAICacheUsageForBilling(body, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
 		c.Data(resp.StatusCode, contentType, body)
 	}
@@ -1878,7 +1878,7 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 			return nil, fmt.Errorf("restore OpenAI passthrough namespace response: %w", restoreErr)
 		}
 		body = restoredBody
-		body, _ = rewriteOpenAICacheUsageForBilling(body, s.openAICacheBillingRatioForClient(account))
+		body, _ = rewriteOpenAICacheUsageForBilling(body, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	} else {
 		terminalType, terminalPayload, terminalOK := extractOpenAISSETerminalEvent(bodyText)
 		if terminalOK && terminalType == "response.failed" {
@@ -1893,7 +1893,7 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 			bodyText = s.replaceModelInSSEBody(bodyText, mappedModel, originalModel)
 		}
 		body = []byte(bodyText)
-		body, _ = rewriteOpenAICacheUsageInSSEBodyForBilling(body, s.openAICacheBillingRatioForClient(account))
+		body, _ = rewriteOpenAICacheUsageInSSEBodyForBilling(body, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	}
 
 	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)

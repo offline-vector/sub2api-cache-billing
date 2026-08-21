@@ -936,7 +936,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			return replaceOpenAIWSMessageModel(payload, upstreamModel, requestModel)
 		},
 		rewriteResponseUsage: func(payload []byte) []byte {
-			rewritten, _ := rewriteOpenAICacheUsageForBilling(payload, s.openAICacheBillingRatioForClient(account))
+			rewritten, _ := rewriteOpenAICacheUsageForBilling(payload, s.openAICacheBillingRatioForClient(ctx, account))
 			return rewritten
 		},
 	}

@@ -151,7 +151,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	// This prevents retries/idempotent log writes from applying the ratio twice.
 	cacheBilling := applyOpenAICacheBillingRatio(
 		result.Usage,
-		s.openAICacheBillingRatioFor(result, account, input.CyberBlocked),
+		s.openAICacheBillingRatioFor(ctx, result, account, input.CyberBlocked),
 	)
 
 	// Calculate cost

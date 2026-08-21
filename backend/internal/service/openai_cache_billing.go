@@ -6,11 +6,68 @@ import (
 	"math"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
 const defaultOpenAICacheBillingRatio = 1.0
+
+type openAICacheBillingRatioSnapshotKey struct{}
+
+// withOpenAICacheBillingRatioSnapshot freezes the operator setting for one
+// request. Updating c.Request makes the same value available to the handler's
+// detached usage-record task after the upstream response has completed.
+func withOpenAICacheBillingRatioSnapshot(ctx context.Context, c *gin.Context, ratio float64) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, ok := openAICacheBillingRatioSnapshot(ctx); !ok {
+		if c != nil && c.Request != nil {
+			if requestRatio, requestOK := openAICacheBillingRatioSnapshot(c.Request.Context()); requestOK {
+				ctx = context.WithValue(ctx, openAICacheBillingRatioSnapshotKey{}, requestRatio)
+			} else {
+				ctx = context.WithValue(ctx, openAICacheBillingRatioSnapshotKey{}, normalizeOpenAICacheBillingRatio(ratio))
+			}
+		} else {
+			ctx = context.WithValue(ctx, openAICacheBillingRatioSnapshotKey{}, normalizeOpenAICacheBillingRatio(ratio))
+		}
+	}
+	if c != nil && c.Request != nil {
+		c.Request = c.Request.WithContext(ctx)
+	}
+	return ctx
+}
+
+func (s *GatewayService) snapshotOpenAICacheBillingRatio(ctx context.Context, c *gin.Context, account *Account) context.Context {
+	if !gatewayOpenAICacheBillingEligible(account) {
+		return ctx
+	}
+	return withOpenAICacheBillingRatioSnapshot(ctx, c, s.currentOpenAICacheBillingRatio(ctx))
+}
+
+func openAICacheBillingRatioSnapshot(ctx context.Context) (float64, bool) {
+	if ctx == nil {
+		return 0, false
+	}
+	ratio, ok := ctx.Value(openAICacheBillingRatioSnapshotKey{}).(float64)
+	if !ok {
+		return 0, false
+	}
+	return normalizeOpenAICacheBillingRatio(ratio), true
+}
+
+// CopyOpenAICacheBillingRatioSnapshot preserves the request-level setting when
+// billing work moves to a worker context that intentionally drops cancellation.
+func CopyOpenAICacheBillingRatioSnapshot(parent, base context.Context) context.Context {
+	if base == nil {
+		base = context.Background()
+	}
+	if ratio, ok := openAICacheBillingRatioSnapshot(parent); ok {
+		return context.WithValue(base, openAICacheBillingRatioSnapshotKey{}, ratio)
+	}
+	return base
+}
 
 // openAICacheBillingResult keeps upstream metering separate from the billable
 // buckets. Total input is intentionally immutable so context-window decisions
@@ -96,6 +153,16 @@ func (s *GatewayService) openAICacheBillingRatioForClient(ctx context.Context, a
 	if s == nil || !gatewayOpenAICacheBillingEligible(account) {
 		return defaultOpenAICacheBillingRatio
 	}
+	if ratio, ok := openAICacheBillingRatioSnapshot(ctx); ok {
+		return ratio
+	}
+	return s.currentOpenAICacheBillingRatio(ctx)
+}
+
+func (s *GatewayService) currentOpenAICacheBillingRatio(ctx context.Context) float64 {
+	if s == nil {
+		return defaultOpenAICacheBillingRatio
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -161,30 +228,41 @@ func rewriteAnthropicCacheUsageForBilling(body []byte, ratio float64) ([]byte, b
 	return updated, billableCacheRead != int(cacheRead.Int())
 }
 
-func (s *OpenAIGatewayService) openAICacheBillingRatioFor(result *OpenAIForwardResult, account *Account, cyberBlocked bool) float64 {
+func (s *OpenAIGatewayService) openAICacheBillingRatioFor(ctx context.Context, result *OpenAIForwardResult, account *Account, cyberBlocked bool) float64 {
 	if result == nil || account == nil || account.Platform != PlatformOpenAI || cyberBlocked ||
 		!result.SucceededForScheduling() || result.ImageCount > 0 || result.VideoCount > 0 ||
 		result.AudioUsage != nil || result.Usage.ImageInputTokens > 0 || result.Usage.ImageOutputTokens > 0 {
 		return defaultOpenAICacheBillingRatio
 	}
-	if s == nil {
-		return defaultOpenAICacheBillingRatio
-	}
-	if s.settingService != nil {
-		return s.settingService.GetOpenAICacheBillingRatio(context.Background())
-	}
-	if s.cfg == nil {
-		return defaultOpenAICacheBillingRatio
-	}
-	return normalizeOpenAICacheBillingRatio(s.cfg.Gateway.OpenAICacheBillingRatio)
+	return s.openAICacheBillingRatioForClient(ctx, account)
 }
 
-func (s *OpenAIGatewayService) openAICacheBillingRatioForClient(account *Account) float64 {
+func (s *OpenAIGatewayService) snapshotOpenAICacheBillingRatio(ctx context.Context, c *gin.Context, account *Account) context.Context {
+	if account == nil || account.Platform != PlatformOpenAI {
+		return ctx
+	}
+	return withOpenAICacheBillingRatioSnapshot(ctx, c, s.currentOpenAICacheBillingRatio(ctx))
+}
+
+func (s *OpenAIGatewayService) openAICacheBillingRatioForClient(ctx context.Context, account *Account) float64 {
 	if account == nil || account.Platform != PlatformOpenAI || s == nil {
 		return defaultOpenAICacheBillingRatio
 	}
+	if ratio, ok := openAICacheBillingRatioSnapshot(ctx); ok {
+		return ratio
+	}
+	return s.currentOpenAICacheBillingRatio(ctx)
+}
+
+func (s *OpenAIGatewayService) currentOpenAICacheBillingRatio(ctx context.Context) float64 {
+	if s == nil {
+		return defaultOpenAICacheBillingRatio
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if s.settingService != nil {
-		return s.settingService.GetOpenAICacheBillingRatio(context.Background())
+		return s.settingService.GetOpenAICacheBillingRatio(ctx)
 	}
 	if s.cfg == nil {
 		return defaultOpenAICacheBillingRatio

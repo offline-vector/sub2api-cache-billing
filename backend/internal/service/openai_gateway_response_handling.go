@@ -576,7 +576,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			s.parseSSEUsageBytes(dataBytes, usage)
 			if rewrittenData, rewritten := rewriteOpenAICacheUsageForBilling(
 				dataBytes,
-				s.openAICacheBillingRatioForClient(account),
+				s.openAICacheBillingRatioForClient(c.Request.Context(), account),
 			); rewritten {
 				dataBytes = rewrittenData
 				data = string(rewrittenData)
@@ -1320,7 +1320,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 	if err != nil {
 		return nil, fmt.Errorf("restore OpenAI namespace response: %w", err)
 	}
-	body, _ = rewriteOpenAICacheUsageForBilling(body, s.openAICacheBillingRatioForClient(account))
+	body, _ = rewriteOpenAICacheUsageForBilling(body, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	// Codex 协议要求 /responses/compact JSON 响应携带 x-codex-turn-state
 	// （codex-api/src/endpoint/compact.rs 从响应头捕获），显式回传。
@@ -1403,7 +1403,7 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 			return nil, fmt.Errorf("restore OpenAI namespace response: %w", restoreErr)
 		}
 		body = restoredBody
-		body, _ = rewriteOpenAICacheUsageForBilling(body, s.openAICacheBillingRatioForClient(account))
+		body, _ = rewriteOpenAICacheUsageForBilling(body, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	} else {
 		terminalType, terminalPayload, terminalOK := extractOpenAISSETerminalEvent(bodyText)
 		if terminalOK && terminalType == "response.failed" {
@@ -1418,7 +1418,7 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 			bodyText = s.replaceModelInSSEBody(bodyText, mappedModel, originalModel)
 		}
 		body = []byte(bodyText)
-		body, _ = rewriteOpenAICacheUsageInSSEBodyForBilling(body, s.openAICacheBillingRatioForClient(account))
+		body, _ = rewriteOpenAICacheUsageInSSEBodyForBilling(body, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	}
 
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)

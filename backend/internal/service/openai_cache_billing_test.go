@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
 
@@ -128,6 +130,41 @@ func TestGatewayOpenAICacheBillingEligibility(t *testing.T) {
 	}
 }
 
+func TestOpenAICacheBillingRatioSnapshotIsStableAcrossUpdates(t *testing.T) {
+	ctx := context.Background()
+	ctx = withOpenAICacheBillingRatioSnapshot(ctx, nil, 0.86)
+	if got, ok := openAICacheBillingRatioSnapshot(ctx); !ok || got != 0.86 {
+		t.Fatalf("snapshot=%v present=%v", got, ok)
+	}
+	// A second capture must not replace the request's original policy.
+	ctx = withOpenAICacheBillingRatioSnapshot(ctx, nil, 0.8)
+	if got, _ := openAICacheBillingRatioSnapshot(ctx); got != 0.86 {
+		t.Fatalf("snapshot changed during request: got=%v", got)
+	}
+	base := context.Background()
+	base = CopyOpenAICacheBillingRatioSnapshot(ctx, base)
+	if got, _ := openAICacheBillingRatioSnapshot(base); got != 0.86 {
+		t.Fatalf("worker snapshot=%v", got)
+	}
+}
+
+func TestOpenAICacheBillingRatioSnapshotSurvivesForwardRetry(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/responses", nil)
+
+	first := withOpenAICacheBillingRatioSnapshot(c.Request.Context(), c, 0.86)
+	if got, _ := openAICacheBillingRatioSnapshot(first); got != 0.86 {
+		t.Fatalf("first snapshot=%v", got)
+	}
+
+	// A failover may enter Forward again with the handler's original context.
+	// The request context is the authoritative snapshot across those attempts.
+	retry := withOpenAICacheBillingRatioSnapshot(context.Background(), c, 0.8)
+	if got, _ := openAICacheBillingRatioSnapshot(retry); got != 0.86 {
+		t.Fatalf("retry replaced request snapshot: got=%v", got)
+	}
+}
+
 func TestRewriteOpenAICacheUsageForBilling(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -200,7 +237,7 @@ func TestOpenAICacheBillingEligibility(t *testing.T) {
 	svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{OpenAICacheBillingRatio: 0.6}}}
 	openAIAccount := &Account{Platform: PlatformOpenAI}
 	base := &OpenAIForwardResult{}
-	if got := svc.openAICacheBillingRatioFor(base, openAIAccount, false); got != 0.6 {
+	if got := svc.openAICacheBillingRatioFor(context.Background(), base, openAIAccount, false); got != 0.6 {
 		t.Fatalf("eligible ratio=%v", got)
 	}
 	for name, result := range map[string]*OpenAIForwardResult{
@@ -210,14 +247,14 @@ func TestOpenAICacheBillingEligibility(t *testing.T) {
 		"audio":       {AudioUsage: &AudioUsage{}},
 		"failed ws":   {OpenAIWSMode: true, UpstreamTerminalEvent: "response.failed"},
 	} {
-		if got := svc.openAICacheBillingRatioFor(result, openAIAccount, false); got != 1 {
+		if got := svc.openAICacheBillingRatioFor(context.Background(), result, openAIAccount, false); got != 1 {
 			t.Fatalf("%s ratio=%v want=1", name, got)
 		}
 	}
-	if got := svc.openAICacheBillingRatioFor(base, &Account{Platform: PlatformGrok}, false); got != 1 {
+	if got := svc.openAICacheBillingRatioFor(context.Background(), base, &Account{Platform: PlatformGrok}, false); got != 1 {
 		t.Fatalf("non-OpenAI ratio=%v want=1", got)
 	}
-	if got := svc.openAICacheBillingRatioFor(base, openAIAccount, true); got != 1 {
+	if got := svc.openAICacheBillingRatioFor(context.Background(), base, openAIAccount, true); got != 1 {
 		t.Fatalf("cyber ratio=%v want=1", got)
 	}
 }

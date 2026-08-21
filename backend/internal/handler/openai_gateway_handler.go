@@ -149,6 +149,7 @@ func usageRecordContext(parent context.Context, base context.Context) context.Co
 	if base == nil {
 		base = context.Background()
 	}
+	base = service.CopyOpenAICacheBillingRatioSnapshot(parent, base)
 	if parent == nil {
 		return base
 	}
