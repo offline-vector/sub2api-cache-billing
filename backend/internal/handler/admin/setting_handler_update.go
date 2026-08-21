@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -485,6 +486,11 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	var req UpdateSettingsRequest
 	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if ratio := req.OpenAICacheBillingRatio; ratio != nil &&
+		(*ratio <= 0 || *ratio > 1 || math.IsNaN(*ratio) || math.IsInf(*ratio, 0)) {
+		response.BadRequest(c, "openai_cache_billing_ratio must be finite and greater than 0 and at most 1")
 		return
 	}
 	auditReq := settingsAuditRequest(req)

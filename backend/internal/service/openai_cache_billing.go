@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"math"
 	"strings"
 
@@ -21,6 +22,17 @@ type openAICacheBillingResult struct {
 	BillableCacheCreationTokens int
 	BillableCacheReadTokens     int
 	AppliedRatio                float64
+}
+
+// gatewayOpenAICacheBillingResult carries the same two metering views for the
+// Anthropic-compatible gateway. ClaudeUsage keeps uncached, cache-creation and
+// cache-read input in separate buckets, unlike OpenAIUsage whose InputTokens is
+// the inclusive prompt total.
+type gatewayOpenAICacheBillingResult struct {
+	UpstreamInputTokens     int
+	UpstreamCacheReadTokens int
+	BillableUsage           ClaudeUsage
+	AppliedRatio            float64
 }
 
 func normalizeOpenAICacheBillingRatio(ratio float64) float64 {
@@ -48,6 +60,107 @@ func applyOpenAICacheBillingRatio(usage OpenAIUsage, ratio float64) openAICacheB
 	}
 }
 
+func applyGatewayOpenAICacheBillingRatio(providerUsage, billingUsage ClaudeUsage, ratio float64) gatewayOpenAICacheBillingResult {
+	ratio = normalizeOpenAICacheBillingRatio(ratio)
+	providerInput := max(providerUsage.InputTokens, 0)
+	providerCacheCreation := max(providerUsage.CacheCreationInputTokens, 0)
+	providerCacheRead := max(providerUsage.CacheReadInputTokens, 0)
+
+	billingUsage.InputTokens = max(billingUsage.InputTokens, 0)
+	billingUsage.CacheCreationInputTokens = max(billingUsage.CacheCreationInputTokens, 0)
+	billingUsage.CacheReadInputTokens = max(billingUsage.CacheReadInputTokens, 0)
+	billableCacheRead := int(math.Floor(float64(billingUsage.CacheReadInputTokens) * ratio))
+	billingUsage.InputTokens += billingUsage.CacheReadInputTokens - billableCacheRead
+	billingUsage.CacheReadInputTokens = billableCacheRead
+
+	return gatewayOpenAICacheBillingResult{
+		UpstreamInputTokens:     providerInput + providerCacheCreation + providerCacheRead,
+		UpstreamCacheReadTokens: providerCacheRead,
+		BillableUsage:           billingUsage,
+		AppliedRatio:            ratio,
+	}
+}
+
+func gatewayOpenAICacheBillingEligible(account *Account) bool {
+	return account != nil && account.Platform == PlatformOpenAI
+}
+
+func (s *GatewayService) openAICacheBillingRatioFor(ctx context.Context, result *ForwardResult, account *Account) float64 {
+	if !gatewayOpenAICacheBillingEligible(account) || result == nil || result.ImageCount > 0 || result.AudioUsage != nil {
+		return defaultOpenAICacheBillingRatio
+	}
+	return s.openAICacheBillingRatioForClient(ctx, account)
+}
+
+func (s *GatewayService) openAICacheBillingRatioForClient(ctx context.Context, account *Account) float64 {
+	if s == nil || !gatewayOpenAICacheBillingEligible(account) {
+		return defaultOpenAICacheBillingRatio
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if s.settingService != nil {
+		return s.settingService.GetOpenAICacheBillingRatio(ctx)
+	}
+	if s.cfg == nil {
+		return defaultOpenAICacheBillingRatio
+	}
+	return normalizeOpenAICacheBillingRatio(s.cfg.Gateway.OpenAICacheBillingRatio)
+}
+
+func rewriteAnthropicCacheUsageMapForBilling(usage map[string]any, ratio float64) bool {
+	ratio = normalizeOpenAICacheBillingRatio(ratio)
+	if ratio == defaultOpenAICacheBillingRatio || usage == nil {
+		return false
+	}
+	input, inputOK := parseSSEUsageInt(usage["input_tokens"])
+	cacheRead, cacheOK := parseSSEUsageInt(usage["cache_read_input_tokens"])
+	if !cacheOK {
+		cacheRead, cacheOK = parseSSEUsageInt(usage["cached_tokens"])
+	}
+	if !inputOK || !cacheOK || cacheRead <= 0 {
+		return false
+	}
+	billableCacheRead := int(math.Floor(float64(cacheRead) * ratio))
+	usage["input_tokens"] = input + cacheRead - billableCacheRead
+	usage["cache_read_input_tokens"] = billableCacheRead
+	if _, exists := usage["cached_tokens"]; exists {
+		usage["cached_tokens"] = billableCacheRead
+	}
+	return billableCacheRead != cacheRead
+}
+
+func rewriteAnthropicCacheUsageForBilling(body []byte, ratio float64) ([]byte, bool) {
+	ratio = normalizeOpenAICacheBillingRatio(ratio)
+	if ratio == defaultOpenAICacheBillingRatio || len(body) == 0 || !gjson.ValidBytes(body) {
+		return body, false
+	}
+	input := gjson.GetBytes(body, "usage.input_tokens")
+	cacheRead := gjson.GetBytes(body, "usage.cache_read_input_tokens")
+	if !cacheRead.Exists() {
+		cacheRead = gjson.GetBytes(body, "usage.cached_tokens")
+	}
+	if !input.Exists() || !cacheRead.Exists() || input.Type != gjson.Number || cacheRead.Type != gjson.Number || cacheRead.Int() <= 0 {
+		return body, false
+	}
+	billableCacheRead := int(math.Floor(float64(cacheRead.Int()) * ratio))
+	updated, err := sjson.SetBytes(body, "usage.input_tokens", int(input.Int())+int(cacheRead.Int())-billableCacheRead)
+	if err != nil {
+		return body, false
+	}
+	updated, err = sjson.SetBytes(updated, "usage.cache_read_input_tokens", billableCacheRead)
+	if err != nil {
+		return body, false
+	}
+	if gjson.GetBytes(updated, "usage.cached_tokens").Exists() {
+		updated, err = sjson.SetBytes(updated, "usage.cached_tokens", billableCacheRead)
+		if err != nil {
+			return body, false
+		}
+	}
+	return updated, billableCacheRead != int(cacheRead.Int())
+}
+
 func (s *OpenAIGatewayService) openAICacheBillingRatioFor(result *OpenAIForwardResult, account *Account, cyberBlocked bool) float64 {
 	if result == nil || account == nil || account.Platform != PlatformOpenAI || cyberBlocked ||
 		!result.SucceededForScheduling() || result.ImageCount > 0 || result.VideoCount > 0 ||
@@ -58,7 +171,7 @@ func (s *OpenAIGatewayService) openAICacheBillingRatioFor(result *OpenAIForwardR
 		return defaultOpenAICacheBillingRatio
 	}
 	if s.settingService != nil {
-		return s.settingService.GetOpenAICacheBillingRatio(nil)
+		return s.settingService.GetOpenAICacheBillingRatio(context.Background())
 	}
 	if s.cfg == nil {
 		return defaultOpenAICacheBillingRatio
@@ -71,7 +184,7 @@ func (s *OpenAIGatewayService) openAICacheBillingRatioForClient(account *Account
 		return defaultOpenAICacheBillingRatio
 	}
 	if s.settingService != nil {
-		return s.settingService.GetOpenAICacheBillingRatio(nil)
+		return s.settingService.GetOpenAICacheBillingRatio(context.Background())
 	}
 	if s.cfg == nil {
 		return defaultOpenAICacheBillingRatio

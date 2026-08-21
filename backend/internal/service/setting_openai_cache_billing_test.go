@@ -76,10 +76,21 @@ func TestOpenAICacheBillingRatioLoadsAndUpdatesImmediately(t *testing.T) {
 
 func TestOpenAICacheBillingRatioRejectsInvalidAdminValues(t *testing.T) {
 	svc := &SettingService{}
-	for _, ratio := range []float64{0, -0.1, 1.01, math.NaN(), math.Inf(1)} {
+	for _, ratio := range []float64{-0.1, 1.01, math.NaN(), math.Inf(1)} {
 		_, err := svc.buildSystemSettingsUpdates(context.Background(), &SystemSettings{OpenAICacheBillingRatio: ratio})
 		require.Error(t, err, "ratio=%v", ratio)
 	}
+}
+
+func TestOpenAICacheBillingRatioZeroValueIsOmittedByLegacyCallers(t *testing.T) {
+	repo := &cacheBillingSettingRepoStub{values: map[string]string{SettingKeyOpenAICacheBillingRatio: "0.86"}}
+	svc := &SettingService{settingRepo: repo, cfg: &config.Config{Gateway: config.GatewayConfig{OpenAICacheBillingRatio: 1}}}
+	settings := &SystemSettings{}
+
+	updates, err := svc.buildSystemSettingsUpdates(context.Background(), settings)
+	require.NoError(t, err)
+	require.NotContains(t, updates, SettingKeyOpenAICacheBillingRatio)
+	require.Equal(t, "0.86", repo.values[SettingKeyOpenAICacheBillingRatio])
 }
 
 func TestParseStoredOpenAICacheBillingRatioFailsClosed(t *testing.T) {

@@ -831,6 +831,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 	}
 
 	needModelReplace := originalModel != mappedModel
+	clientCacheBillingRatio := s.openAICacheBillingRatioForClient(ctx, account)
 	clientDisconnected := false // 客户端断开标志，断开后继续读取上游以获取完整usage
 	sawTerminalEvent := false
 	useNoopDeltaKeepalive := c != nil && c.Request != nil && shouldUseClaudeCodeNoopDeltaKeepalive(c.GetHeader("User-Agent"))
@@ -959,6 +960,22 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			}
 		}
 
+		// Capture provider usage before rewriting the client-facing cache/input
+		// split. Billing and administrator audit must retain the upstream values.
+		usagePatch := s.extractSSEUsagePatch(event)
+		if eventType == "message_start" {
+			if msg, ok := event["message"].(map[string]any); ok {
+				if u, ok := msg["usage"].(map[string]any); ok {
+					eventChanged = rewriteAnthropicCacheUsageMapForBilling(u, clientCacheBillingRatio) || eventChanged
+				}
+			}
+		}
+		if eventType == "message_delta" {
+			if u, ok := event["usage"].(map[string]any); ok {
+				eventChanged = rewriteAnthropicCacheUsageMapForBilling(u, clientCacheBillingRatio) || eventChanged
+			}
+		}
+
 		if needModelReplace {
 			if msg, ok := event["message"].(map[string]any); ok {
 				if model, ok := msg["model"].(string); ok && model == mappedModel {
@@ -968,7 +985,6 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			}
 		}
 
-		usagePatch := s.extractSSEUsagePatch(event)
 		if anthropicStreamEventIsTerminal(eventName, dataLine) {
 			sawTerminalEvent = true
 		}
@@ -1431,6 +1447,15 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 				body = newBody
 			}
 		}
+	}
+
+	// Only the copy sent to the customer is reclassified. response.Usage stays
+	// provider-authentic for RecordUsage and the administrator audit columns.
+	if rewritten, ok := rewriteAnthropicCacheUsageForBilling(
+		body,
+		s.openAICacheBillingRatioForClient(ctx, account),
+	); ok {
+		body = rewritten
 	}
 
 	// 如果有模型映射，替换响应中的model字段

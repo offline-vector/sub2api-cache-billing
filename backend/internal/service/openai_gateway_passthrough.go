@@ -1685,8 +1685,6 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				dataBytes,
 				s.openAICacheBillingRatioForClient(account),
 			); rewritten {
-				dataBytes = rewrittenData
-				trimmedData = strings.TrimSpace(string(rewrittenData))
 				line = "data: " + string(rewrittenData)
 			}
 		}

@@ -791,23 +791,35 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	account := input.Account
 	subscription := input.Subscription
 	ApplyForwardImageBillingResolution(result)
+	providerResult := *result
+	providerUsage := result.Usage
+	billingUsage := providerUsage
 
 	// 强制缓存计费：将 input_tokens 转为 cache_read_input_tokens
 	// 用于粘性会话切换时的特殊计费处理
-	if input.ForceCacheBilling && result.Usage.InputTokens > 0 {
+	if input.ForceCacheBilling && billingUsage.InputTokens > 0 {
 		logger.LegacyPrintf("service.gateway", "force_cache_billing: %d input_tokens → cache_read_input_tokens (account=%d)",
-			result.Usage.InputTokens, account.ID)
-		result.Usage.CacheReadInputTokens += result.Usage.InputTokens
-		result.Usage.InputTokens = 0
+			billingUsage.InputTokens, account.ID)
+		billingUsage.CacheReadInputTokens += billingUsage.InputTokens
+		billingUsage.InputTokens = 0
 	}
 
 	// Cache TTL Override: 确保计费时 token 分类与账号设置一致。
 	// 账号级设置优先；全局 1h 请求注入开启时，默认把 usage 计费归回 5m。
 	cacheTTLOverridden := false
 	if overrideTarget, ok := s.resolveCacheTTLUsageOverrideTarget(ctx, account); ok {
-		applyCacheTTLOverride(&result.Usage, overrideTarget)
-		cacheTTLOverridden = (result.Usage.CacheCreation5mTokens + result.Usage.CacheCreation1hTokens) > 0
+		applyCacheTTLOverride(&billingUsage, overrideTarget)
+		cacheTTLOverridden = (billingUsage.CacheCreation5mTokens + billingUsage.CacheCreation1hTokens) > 0
 	}
+
+	cacheBilling := applyGatewayOpenAICacheBillingRatio(
+		providerUsage,
+		billingUsage,
+		s.openAICacheBillingRatioFor(ctx, &providerResult, account),
+	)
+	billingResult := providerResult
+	billingResult.Usage = cacheBilling.BillableUsage
+	result = &billingResult
 
 	// 获取费率倍数（优先级：用户专属 > 分组默认 > 系统默认）
 	multiplier := 1.0
@@ -854,6 +866,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 	// 计算费用
 	cost := s.calculateRecordUsageCost(ctx, result, apiKey, billingModel, multiplier, imageMultiplier, pricingAt, opts)
+	effectiveBillingModel := billingModel
 	// response_model：按上游成功响应自报的模型计费（渠道显式开启才生效）。
 	// 采纳条件见 responseModelBillingDeclaration + hasIdentifiedResponseModelPricing
 	// + responseModelBillingAdoptable。任一条件不满足都静默回落基线，即开启本模式前的
@@ -872,8 +885,26 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 				// 因此这里不改写它，改由日志记录实际生效的计费基准。
 				logResponseModelBillingApplied("service.gateway", account, result.RequestID, billingModel, responseModel, cost, responseCost)
 				cost = responseCost
+				effectiveBillingModel = responseModel
 			}
 		}
+	}
+
+	// Recalculate the same request against provider-reported buckets. This is
+	// used for administrator audit and account quota/cost accounting only; the
+	// customer-facing deduction continues to use the billable result above.
+	upstreamMeteredCost := cost
+	if providerUsage != cacheBilling.BillableUsage {
+		upstreamMeteredCost = s.calculateRecordUsageCost(
+			ctx,
+			&providerResult,
+			apiKey,
+			effectiveBillingModel,
+			multiplier,
+			imageMultiplier,
+			pricingAt,
+			opts,
+		)
 	}
 
 	// 判断计费方式：订阅模式 vs 余额模式
@@ -887,22 +918,37 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	accountRateMultiplier := account.BillingRateMultiplier()
 	usageLog := s.buildRecordUsageLog(ctx, input, result, apiKey, user, account, subscription,
 		requestedModel, multiplier, imageMultiplier, accountRateMultiplier, billingType, cacheTTLOverridden, cost, opts)
+	usageLog.UpstreamInputTokens = cacheBilling.UpstreamInputTokens
+	usageLog.UpstreamCacheReadTokens = cacheBilling.UpstreamCacheReadTokens
+	usageLog.CacheBillingRatio = cacheBilling.AppliedRatio
+	if upstreamMeteredCost != nil {
+		usageLog.UpstreamTotalCost = upstreamMeteredCost.TotalCost
+	} else if cost != nil {
+		usageLog.UpstreamTotalCost = cost.TotalCost
+	}
 
 	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）
 	if apiKey.GroupID != nil {
+		accountStandardCost := cost.TotalCost
+		if upstreamMeteredCost != nil {
+			accountStandardCost = upstreamMeteredCost.TotalCost
+		}
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,
 			account.ID, *apiKey.GroupID, result.UpstreamModel, result.Model,
 			// Anthropic's input_tokens excludes cache_read and cache_creation (billed separately);
 			// OpenAI gateway uses actualInputTokens which also excludes cache_read for the same reason.
 			UsageTokens{
-				InputTokens:         result.Usage.InputTokens,
-				OutputTokens:        result.Usage.OutputTokens,
-				CacheCreationTokens: result.Usage.CacheCreationInputTokens,
-				CacheReadTokens:     result.Usage.CacheReadInputTokens,
-				ImageOutputTokens:   result.Usage.ImageOutputTokens,
+				InputTokens:         providerUsage.InputTokens,
+				OutputTokens:        providerUsage.OutputTokens,
+				CacheCreationTokens: providerUsage.CacheCreationInputTokens,
+				CacheReadTokens:     providerUsage.CacheReadInputTokens,
+				ImageOutputTokens:   providerUsage.ImageOutputTokens,
 			},
-			cost.TotalCost,
+			accountStandardCost,
 		)
+		if usageLog.AccountStatsCost == nil {
+			usageLog.AccountStatsCost = &accountStandardCost
+		}
 	}
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
@@ -923,6 +969,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		}
 	}
 	requestID := usageLog.RequestID
+	accountStandardCost := usageLog.UpstreamTotalCost
 	_, billingErr := applyUsageBilling(ctx, requestID, usageLog, &postUsageBillingParams{
 		Cost:                  cost,
 		User:                  user,
@@ -932,6 +979,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		RequestPayloadHash:    resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
 		IsSubscriptionBill:    isSubscriptionBilling,
 		AccountRateMultiplier: accountRateMultiplier,
+		AccountStandardCost:   &accountStandardCost,
 		APIKeyService:         input.APIKeyService,
 		Platform:              quotaPlatform,
 	}, s.billingDeps(), s.usageBillingRepo)

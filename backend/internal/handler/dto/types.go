@@ -566,7 +566,7 @@ type AdminUsageLog struct {
 	CacheBillingRatio       float64 `json:"cache_billing_ratio"`
 	// UpstreamTotalCost is Sub2API's standard-price counterfactual calculated
 	// from the provider-reported buckets. It is not the provider invoice.
-	UpstreamTotalCost       float64 `json:"upstream_total_cost"`
+	UpstreamTotalCost float64 `json:"upstream_total_cost"`
 
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.
 	// Omitted when no mapping was applied (requested model was used as-is).

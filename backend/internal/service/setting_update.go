@@ -126,7 +126,10 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	if err := s.normalizeOpenAIAdvancedSchedulerOverrides(settings); err != nil {
 		return nil, err
 	}
-	if settings.OpenAICacheBillingRatio <= 0 || settings.OpenAICacheBillingRatio > 1 ||
+	// SystemSettings is also used by internal callers that predate this field.
+	// Its zero value means omitted; the HTTP DTO uses *float64 and rejects an
+	// explicitly submitted zero before it reaches this method.
+	if settings.OpenAICacheBillingRatio < 0 || settings.OpenAICacheBillingRatio > 1 ||
 		math.IsNaN(settings.OpenAICacheBillingRatio) || math.IsInf(settings.OpenAICacheBillingRatio, 0) {
 		return nil, infraerrors.BadRequest("INVALID_OPENAI_CACHE_BILLING_RATIO", "openai_cache_billing_ratio must be finite and greater than 0 and at most 1")
 	}
@@ -494,7 +497,9 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingPaymentVisibleMethodWxpayEnabled] = strconv.FormatBool(settings.PaymentVisibleMethodWxpayEnabled)
 	updates[SettingKeyOpenAILowUpstreamRatePriorityEnabled] = strconv.FormatBool(settings.OpenAILowUpstreamRatePriorityEnabled)
 	updates[SettingKeyOpenAIOAuthSchedulingRateMultiplier] = strconv.FormatFloat(settings.OpenAIOAuthSchedulingRateMultiplier, 'f', -1, 64)
-	updates[SettingKeyOpenAICacheBillingRatio] = strconv.FormatFloat(settings.OpenAICacheBillingRatio, 'f', -1, 64)
+	if settings.OpenAICacheBillingRatio > 0 {
+		updates[SettingKeyOpenAICacheBillingRatio] = strconv.FormatFloat(settings.OpenAICacheBillingRatio, 'f', -1, 64)
+	}
 	updates[openAIAdvancedSchedulerSettingKey] = strconv.FormatBool(settings.OpenAIAdvancedSchedulerEnabled)
 	updates[SettingKeyOpenAIAdvancedSchedulerStickyWeightedEnabled] = strconv.FormatBool(settings.OpenAIAdvancedSchedulerStickyWeightedEnabled)
 	updates[SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled] = strconv.FormatBool(settings.OpenAIAdvancedSchedulerSubscriptionPriorityEnabled)
@@ -686,7 +691,9 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 	if settings == nil {
 		return
 	}
-	s.storeOpenAICacheBillingRatio(settings.OpenAICacheBillingRatio)
+	if settings.OpenAICacheBillingRatio > 0 {
+		s.storeOpenAICacheBillingRatio(settings.OpenAICacheBillingRatio)
+	}
 
 	// 先使 inflight singleflight 失效，再刷新缓存，缩小旧值覆盖新值的竞态窗口
 	versionBoundsSF.Forget("version_bounds")

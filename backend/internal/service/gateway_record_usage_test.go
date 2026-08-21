@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -115,6 +116,124 @@ func TestGatewayServiceRecordUsage_BillingUsesDetachedContext(t *testing.T) {
 	require.NoError(t, userRepo.lastCtxErr)
 	require.Equal(t, 1, quotaSvc.quotaCalls)
 	require.NoError(t, quotaSvc.lastQuotaCtxErr)
+}
+
+func TestGatewayServiceRecordUsage_OpenAIAccountUsesAuditableCacheRatio(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(
+		usageRepo,
+		billingRepo,
+		&openAIRecordUsageUserRepoStub{},
+		&openAIRecordUsageSubRepoStub{},
+	)
+	svc.cfg.Gateway.OpenAICacheBillingRatio = 0.6
+
+	result := &ForwardResult{
+		RequestID: "gateway_openai_cache_ratio",
+		Usage: ClaudeUsage{
+			InputTokens:              10,
+			OutputTokens:             7,
+			CacheCreationInputTokens: 20,
+			CacheReadInputTokens:     101,
+		},
+		Model:    "claude-sonnet-4",
+		Duration: time.Second,
+	}
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result:  result,
+		APIKey:  &APIKey{ID: 501},
+		User:    &User{ID: 601},
+		Account: &Account{ID: 701, Platform: PlatformOpenAI},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 51, usageRepo.lastLog.InputTokens)
+	require.Equal(t, 60, usageRepo.lastLog.CacheReadTokens)
+	require.Equal(t, 20, usageRepo.lastLog.CacheCreationTokens)
+	require.Equal(t, 131, usageRepo.lastLog.UpstreamInputTokens)
+	require.Equal(t, 101, usageRepo.lastLog.UpstreamCacheReadTokens)
+	require.Equal(t, 0.6, usageRepo.lastLog.CacheBillingRatio)
+	require.Greater(t, usageRepo.lastLog.TotalCost, usageRepo.lastLog.UpstreamTotalCost)
+	require.Equal(t, ClaudeUsage{InputTokens: 10, OutputTokens: 7, CacheCreationInputTokens: 20, CacheReadInputTokens: 101}, result.Usage)
+}
+
+func TestGatewayServiceRecordUsage_NonOpenAIKeepsConfiguredMultiplierAndValidCacheRatio(t *testing.T) {
+	for _, platform := range []string{"", PlatformAnthropic, PlatformGemini, PlatformGrok} {
+		for _, multiplier := range []float64{0.5, 1, 2, 3} {
+			t.Run(fmt.Sprintf("%s_%.1fx", platform, multiplier), func(t *testing.T) {
+				usageRepo := &openAIRecordUsageLogRepoStub{}
+				billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+				svc := newGatewayRecordUsageServiceWithBillingRepoForTest(
+					usageRepo,
+					billingRepo,
+					&openAIRecordUsageUserRepoStub{},
+					&openAIRecordUsageSubRepoStub{},
+				)
+				svc.cfg.Gateway.OpenAICacheBillingRatio = 0.6
+				svc.cfg.Default.RateMultiplier = multiplier
+
+				err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+					Result: &ForwardResult{
+						RequestID: "gateway_valid_cache_ratio_" + platform,
+						Usage:     ClaudeUsage{InputTokens: 10, OutputTokens: 7, CacheReadInputTokens: 20},
+						Model:     "claude-sonnet-4",
+						Duration:  time.Second,
+					},
+					APIKey:  &APIKey{ID: 503},
+					User:    &User{ID: 603},
+					Account: &Account{ID: 703, Platform: platform},
+				})
+
+				require.NoError(t, err)
+				require.NotNil(t, usageRepo.lastLog)
+				require.Equal(t, 1.0, usageRepo.lastLog.CacheBillingRatio)
+				require.Greater(t, usageRepo.lastLog.CacheBillingRatio, 0.0)
+				require.LessOrEqual(t, usageRepo.lastLog.CacheBillingRatio, 1.0)
+				require.Equal(t, 10, usageRepo.lastLog.InputTokens)
+				require.Equal(t, 20, usageRepo.lastLog.CacheReadTokens)
+				require.Equal(t, multiplier, usageRepo.lastLog.RateMultiplier)
+				require.InDelta(t, usageRepo.lastLog.TotalCost*multiplier, usageRepo.lastLog.ActualCost, 1e-12)
+				require.InDelta(t, usageRepo.lastLog.TotalCost, usageRepo.lastLog.UpstreamTotalCost, 1e-12)
+			})
+		}
+	}
+}
+
+func TestGatewayServiceRecordUsage_ForcedCacheKeepsProviderAudit(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(
+		usageRepo,
+		billingRepo,
+		&openAIRecordUsageUserRepoStub{},
+		&openAIRecordUsageSubRepoStub{},
+	)
+	svc.cfg.Gateway.OpenAICacheBillingRatio = 0.6
+	result := &ForwardResult{
+		RequestID: "gateway_forced_cache_ratio",
+		Usage:     ClaudeUsage{InputTokens: 100, OutputTokens: 7},
+		Model:     "claude-sonnet-4",
+		Duration:  time.Second,
+	}
+
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result:            result,
+		APIKey:            &APIKey{ID: 502},
+		User:              &User{ID: 602},
+		Account:           &Account{ID: 702, Platform: PlatformOpenAI},
+		ForceCacheBilling: true,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 40, usageRepo.lastLog.InputTokens)
+	require.Equal(t, 60, usageRepo.lastLog.CacheReadTokens)
+	require.Equal(t, 100, usageRepo.lastLog.UpstreamInputTokens)
+	require.Zero(t, usageRepo.lastLog.UpstreamCacheReadTokens)
+	require.Greater(t, usageRepo.lastLog.UpstreamTotalCost, usageRepo.lastLog.TotalCost)
+	require.Equal(t, ClaudeUsage{InputTokens: 100, OutputTokens: 7}, result.Usage)
 }
 
 func TestGatewayServiceRecordUsage_BillingFingerprintIncludesRequestPayloadHash(t *testing.T) {
