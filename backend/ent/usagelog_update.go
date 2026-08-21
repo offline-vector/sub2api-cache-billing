@@ -393,6 +393,69 @@ func (_u *UsageLogUpdate) AddCacheReadTokens(v int) *UsageLogUpdate {
 	return _u
 }
 
+// SetUpstreamInputTokens sets the "upstream_input_tokens" field.
+func (_u *UsageLogUpdate) SetUpstreamInputTokens(v int) *UsageLogUpdate {
+	_u.mutation.ResetUpstreamInputTokens()
+	_u.mutation.SetUpstreamInputTokens(v)
+	return _u
+}
+
+// SetNillableUpstreamInputTokens sets the "upstream_input_tokens" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableUpstreamInputTokens(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetUpstreamInputTokens(*v)
+	}
+	return _u
+}
+
+// AddUpstreamInputTokens adds value to the "upstream_input_tokens" field.
+func (_u *UsageLogUpdate) AddUpstreamInputTokens(v int) *UsageLogUpdate {
+	_u.mutation.AddUpstreamInputTokens(v)
+	return _u
+}
+
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (_u *UsageLogUpdate) SetUpstreamCacheReadTokens(v int) *UsageLogUpdate {
+	_u.mutation.ResetUpstreamCacheReadTokens()
+	_u.mutation.SetUpstreamCacheReadTokens(v)
+	return _u
+}
+
+// SetNillableUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableUpstreamCacheReadTokens(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetUpstreamCacheReadTokens(*v)
+	}
+	return _u
+}
+
+// AddUpstreamCacheReadTokens adds value to the "upstream_cache_read_tokens" field.
+func (_u *UsageLogUpdate) AddUpstreamCacheReadTokens(v int) *UsageLogUpdate {
+	_u.mutation.AddUpstreamCacheReadTokens(v)
+	return _u
+}
+
+// SetCacheBillingRatio sets the "cache_billing_ratio" field.
+func (_u *UsageLogUpdate) SetCacheBillingRatio(v float64) *UsageLogUpdate {
+	_u.mutation.ResetCacheBillingRatio()
+	_u.mutation.SetCacheBillingRatio(v)
+	return _u
+}
+
+// SetNillableCacheBillingRatio sets the "cache_billing_ratio" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableCacheBillingRatio(v *float64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetCacheBillingRatio(*v)
+	}
+	return _u
+}
+
+// AddCacheBillingRatio adds value to the "cache_billing_ratio" field.
+func (_u *UsageLogUpdate) AddCacheBillingRatio(v float64) *UsageLogUpdate {
+	_u.mutation.AddCacheBillingRatio(v)
+	return _u
+}
+
 // SetCacheCreation5mTokens sets the "cache_creation_5m_tokens" field.
 func (_u *UsageLogUpdate) SetCacheCreation5mTokens(v int) *UsageLogUpdate {
 	_u.mutation.ResetCacheCreation5mTokens()
@@ -1216,6 +1279,24 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedCacheReadTokens(); ok {
 		_spec.AddField(usagelog.FieldCacheReadTokens, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.UpstreamInputTokens(); ok {
+		_spec.SetField(usagelog.FieldUpstreamInputTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamInputTokens(); ok {
+		_spec.AddField(usagelog.FieldUpstreamInputTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.UpstreamCacheReadTokens(); ok {
+		_spec.SetField(usagelog.FieldUpstreamCacheReadTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamCacheReadTokens(); ok {
+		_spec.AddField(usagelog.FieldUpstreamCacheReadTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.CacheBillingRatio(); ok {
+		_spec.SetField(usagelog.FieldCacheBillingRatio, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedCacheBillingRatio(); ok {
+		_spec.AddField(usagelog.FieldCacheBillingRatio, field.TypeFloat64, value)
+	}
 	if value, ok := _u.mutation.CacheCreation5mTokens(); ok {
 		_spec.SetField(usagelog.FieldCacheCreation5mTokens, field.TypeInt, value)
 	}
@@ -1904,6 +1985,69 @@ func (_u *UsageLogUpdateOne) SetNillableCacheReadTokens(v *int) *UsageLogUpdateO
 // AddCacheReadTokens adds value to the "cache_read_tokens" field.
 func (_u *UsageLogUpdateOne) AddCacheReadTokens(v int) *UsageLogUpdateOne {
 	_u.mutation.AddCacheReadTokens(v)
+	return _u
+}
+
+// SetUpstreamInputTokens sets the "upstream_input_tokens" field.
+func (_u *UsageLogUpdateOne) SetUpstreamInputTokens(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetUpstreamInputTokens()
+	_u.mutation.SetUpstreamInputTokens(v)
+	return _u
+}
+
+// SetNillableUpstreamInputTokens sets the "upstream_input_tokens" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableUpstreamInputTokens(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetUpstreamInputTokens(*v)
+	}
+	return _u
+}
+
+// AddUpstreamInputTokens adds value to the "upstream_input_tokens" field.
+func (_u *UsageLogUpdateOne) AddUpstreamInputTokens(v int) *UsageLogUpdateOne {
+	_u.mutation.AddUpstreamInputTokens(v)
+	return _u
+}
+
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (_u *UsageLogUpdateOne) SetUpstreamCacheReadTokens(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetUpstreamCacheReadTokens()
+	_u.mutation.SetUpstreamCacheReadTokens(v)
+	return _u
+}
+
+// SetNillableUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableUpstreamCacheReadTokens(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetUpstreamCacheReadTokens(*v)
+	}
+	return _u
+}
+
+// AddUpstreamCacheReadTokens adds value to the "upstream_cache_read_tokens" field.
+func (_u *UsageLogUpdateOne) AddUpstreamCacheReadTokens(v int) *UsageLogUpdateOne {
+	_u.mutation.AddUpstreamCacheReadTokens(v)
+	return _u
+}
+
+// SetCacheBillingRatio sets the "cache_billing_ratio" field.
+func (_u *UsageLogUpdateOne) SetCacheBillingRatio(v float64) *UsageLogUpdateOne {
+	_u.mutation.ResetCacheBillingRatio()
+	_u.mutation.SetCacheBillingRatio(v)
+	return _u
+}
+
+// SetNillableCacheBillingRatio sets the "cache_billing_ratio" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableCacheBillingRatio(v *float64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetCacheBillingRatio(*v)
+	}
+	return _u
+}
+
+// AddCacheBillingRatio adds value to the "cache_billing_ratio" field.
+func (_u *UsageLogUpdateOne) AddCacheBillingRatio(v float64) *UsageLogUpdateOne {
+	_u.mutation.AddCacheBillingRatio(v)
 	return _u
 }
 
@@ -2759,6 +2903,24 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if value, ok := _u.mutation.AddedCacheReadTokens(); ok {
 		_spec.AddField(usagelog.FieldCacheReadTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.UpstreamInputTokens(); ok {
+		_spec.SetField(usagelog.FieldUpstreamInputTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamInputTokens(); ok {
+		_spec.AddField(usagelog.FieldUpstreamInputTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.UpstreamCacheReadTokens(); ok {
+		_spec.SetField(usagelog.FieldUpstreamCacheReadTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamCacheReadTokens(); ok {
+		_spec.AddField(usagelog.FieldUpstreamCacheReadTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.CacheBillingRatio(); ok {
+		_spec.SetField(usagelog.FieldCacheBillingRatio, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedCacheBillingRatio(); ok {
+		_spec.AddField(usagelog.FieldCacheBillingRatio, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.CacheCreation5mTokens(); ok {
 		_spec.SetField(usagelog.FieldCacheCreation5mTokens, field.TypeInt, value)

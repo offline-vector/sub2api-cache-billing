@@ -147,20 +147,20 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		ApplyOpenAIImageBillingResolution(result)
 	}
 
-	// OpenAI input_tokens 是总输入，包含缓存读取和缓存写入明细。
-	// 将三类 token 拆成互斥桶，避免缓存写入同时按普通输入和 cache_write 重复计费。
-	actualInputTokens := result.Usage.InputTokens - result.Usage.CacheReadInputTokens - result.Usage.CacheCreationInputTokens
-	if actualInputTokens < 0 {
-		actualInputTokens = 0
-	}
+	// Keep upstream metering immutable and derive separate billable buckets.
+	// This prevents retries/idempotent log writes from applying the ratio twice.
+	cacheBilling := applyOpenAICacheBillingRatio(
+		result.Usage,
+		s.openAICacheBillingRatioFor(result, account, input.CyberBlocked),
+	)
 
 	// Calculate cost
 	tokens := UsageTokens{
-		InputTokens:         actualInputTokens,
+		InputTokens:         cacheBilling.BillableInputTokens,
 		ImageInputTokens:    result.Usage.ImageInputTokens,
 		OutputTokens:        result.Usage.OutputTokens,
-		CacheCreationTokens: result.Usage.CacheCreationInputTokens,
-		CacheReadTokens:     result.Usage.CacheReadInputTokens,
+		CacheCreationTokens: cacheBilling.BillableCacheCreationTokens,
+		CacheReadTokens:     cacheBilling.BillableCacheReadTokens,
 		ImageOutputTokens:   result.Usage.ImageOutputTokens,
 	}
 
@@ -320,31 +320,34 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 
 	usageLog := &UsageLog{
-		UserID:                user.ID,
-		APIKeyID:              apiKey.ID,
-		AccountID:             account.ID,
-		RequestID:             requestID,
-		Model:                 result.Model,
-		RequestedModel:        requestedModel,
-		UpstreamModel:         optionalTrimmedStringPtr(result.UpstreamModel),
-		UpstreamResponseModel: optionalTrimmedStringPtr(result.UpstreamResponseModel),
-		UpstreamModelMismatch: upstreamModelMismatch(sentModel, result.UpstreamResponseModel),
-		ServiceTier:           result.ServiceTier,
-		ReasoningEffort:       result.ReasoningEffort,
-		InboundEndpoint:       optionalTrimmedStringPtr(input.InboundEndpoint),
-		UpstreamEndpoint:      optionalTrimmedStringPtr(input.UpstreamEndpoint),
-		InputTokens:           actualInputTokens,
-		OutputTokens:          result.Usage.OutputTokens,
-		CacheCreationTokens:   result.Usage.CacheCreationInputTokens,
-		CacheReadTokens:       result.Usage.CacheReadInputTokens,
-		ImageInputTokens:      result.Usage.ImageInputTokens,
-		ImageOutputTokens:     result.Usage.ImageOutputTokens,
-		ImageCount:            result.ImageCount,
-		ImageSize:             optionalTrimmedStringPtr(result.ImageSize),
-		ImageInputSize:        optionalTrimmedStringPtr(result.ImageInputSize),
-		ImageOutputSize:       optionalTrimmedStringPtr(result.ImageOutputSize),
-		ImageSizeSource:       optionalTrimmedStringPtr(result.ImageSizeSource),
-		ImageSizeBreakdown:    result.ImageSizeBreakdown,
+		UserID:                  user.ID,
+		APIKeyID:                apiKey.ID,
+		AccountID:               account.ID,
+		RequestID:               requestID,
+		Model:                   result.Model,
+		RequestedModel:          requestedModel,
+		UpstreamModel:           optionalTrimmedStringPtr(result.UpstreamModel),
+		UpstreamResponseModel:   optionalTrimmedStringPtr(result.UpstreamResponseModel),
+		UpstreamModelMismatch:   upstreamModelMismatch(sentModel, result.UpstreamResponseModel),
+		ServiceTier:             result.ServiceTier,
+		ReasoningEffort:         result.ReasoningEffort,
+		InboundEndpoint:         optionalTrimmedStringPtr(input.InboundEndpoint),
+		UpstreamEndpoint:        optionalTrimmedStringPtr(input.UpstreamEndpoint),
+		InputTokens:             cacheBilling.BillableInputTokens,
+		OutputTokens:            result.Usage.OutputTokens,
+		CacheCreationTokens:     cacheBilling.BillableCacheCreationTokens,
+		CacheReadTokens:         cacheBilling.BillableCacheReadTokens,
+		UpstreamInputTokens:     cacheBilling.UpstreamInputTokens,
+		UpstreamCacheReadTokens: cacheBilling.UpstreamCacheReadTokens,
+		CacheBillingRatio:       cacheBilling.AppliedRatio,
+		ImageInputTokens:        result.Usage.ImageInputTokens,
+		ImageOutputTokens:       result.Usage.ImageOutputTokens,
+		ImageCount:              result.ImageCount,
+		ImageSize:               optionalTrimmedStringPtr(result.ImageSize),
+		ImageInputSize:          optionalTrimmedStringPtr(result.ImageInputSize),
+		ImageOutputSize:         optionalTrimmedStringPtr(result.ImageOutputSize),
+		ImageSizeSource:         optionalTrimmedStringPtr(result.ImageSizeSource),
+		ImageSizeBreakdown:      result.ImageSizeBreakdown,
 	}
 	isVideoUsage := isGrokVideoUsageResult(result, billingModels)
 	if isVideoUsage {

@@ -150,6 +150,21 @@ func CacheReadTokens(v int) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldCacheReadTokens, v))
 }
 
+// UpstreamInputTokens applies equality check predicate on the "upstream_input_tokens" field. It's identical to UpstreamInputTokensEQ.
+func UpstreamInputTokens(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamInputTokens, v))
+}
+
+// UpstreamCacheReadTokens applies equality check predicate on the "upstream_cache_read_tokens" field. It's identical to UpstreamCacheReadTokensEQ.
+func UpstreamCacheReadTokens(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamCacheReadTokens, v))
+}
+
+// CacheBillingRatio applies equality check predicate on the "cache_billing_ratio" field. It's identical to CacheBillingRatioEQ.
+func CacheBillingRatio(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldCacheBillingRatio, v))
+}
+
 // CacheCreation5mTokens applies equality check predicate on the "cache_creation_5m_tokens" field. It's identical to CacheCreation5mTokensEQ.
 func CacheCreation5mTokens(v int) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldCacheCreation5mTokens, v))
@@ -1213,6 +1228,126 @@ func CacheReadTokensLT(v int) predicate.UsageLog {
 // CacheReadTokensLTE applies the LTE predicate on the "cache_read_tokens" field.
 func CacheReadTokensLTE(v int) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldLTE(FieldCacheReadTokens, v))
+}
+
+// UpstreamInputTokensEQ applies the EQ predicate on the "upstream_input_tokens" field.
+func UpstreamInputTokensEQ(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamInputTokens, v))
+}
+
+// UpstreamInputTokensNEQ applies the NEQ predicate on the "upstream_input_tokens" field.
+func UpstreamInputTokensNEQ(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldUpstreamInputTokens, v))
+}
+
+// UpstreamInputTokensIn applies the In predicate on the "upstream_input_tokens" field.
+func UpstreamInputTokensIn(vs ...int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldUpstreamInputTokens, vs...))
+}
+
+// UpstreamInputTokensNotIn applies the NotIn predicate on the "upstream_input_tokens" field.
+func UpstreamInputTokensNotIn(vs ...int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldUpstreamInputTokens, vs...))
+}
+
+// UpstreamInputTokensGT applies the GT predicate on the "upstream_input_tokens" field.
+func UpstreamInputTokensGT(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldUpstreamInputTokens, v))
+}
+
+// UpstreamInputTokensGTE applies the GTE predicate on the "upstream_input_tokens" field.
+func UpstreamInputTokensGTE(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldUpstreamInputTokens, v))
+}
+
+// UpstreamInputTokensLT applies the LT predicate on the "upstream_input_tokens" field.
+func UpstreamInputTokensLT(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldUpstreamInputTokens, v))
+}
+
+// UpstreamInputTokensLTE applies the LTE predicate on the "upstream_input_tokens" field.
+func UpstreamInputTokensLTE(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldUpstreamInputTokens, v))
+}
+
+// UpstreamCacheReadTokensEQ applies the EQ predicate on the "upstream_cache_read_tokens" field.
+func UpstreamCacheReadTokensEQ(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamCacheReadTokens, v))
+}
+
+// UpstreamCacheReadTokensNEQ applies the NEQ predicate on the "upstream_cache_read_tokens" field.
+func UpstreamCacheReadTokensNEQ(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldUpstreamCacheReadTokens, v))
+}
+
+// UpstreamCacheReadTokensIn applies the In predicate on the "upstream_cache_read_tokens" field.
+func UpstreamCacheReadTokensIn(vs ...int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldUpstreamCacheReadTokens, vs...))
+}
+
+// UpstreamCacheReadTokensNotIn applies the NotIn predicate on the "upstream_cache_read_tokens" field.
+func UpstreamCacheReadTokensNotIn(vs ...int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldUpstreamCacheReadTokens, vs...))
+}
+
+// UpstreamCacheReadTokensGT applies the GT predicate on the "upstream_cache_read_tokens" field.
+func UpstreamCacheReadTokensGT(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldUpstreamCacheReadTokens, v))
+}
+
+// UpstreamCacheReadTokensGTE applies the GTE predicate on the "upstream_cache_read_tokens" field.
+func UpstreamCacheReadTokensGTE(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldUpstreamCacheReadTokens, v))
+}
+
+// UpstreamCacheReadTokensLT applies the LT predicate on the "upstream_cache_read_tokens" field.
+func UpstreamCacheReadTokensLT(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldUpstreamCacheReadTokens, v))
+}
+
+// UpstreamCacheReadTokensLTE applies the LTE predicate on the "upstream_cache_read_tokens" field.
+func UpstreamCacheReadTokensLTE(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldUpstreamCacheReadTokens, v))
+}
+
+// CacheBillingRatioEQ applies the EQ predicate on the "cache_billing_ratio" field.
+func CacheBillingRatioEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldCacheBillingRatio, v))
+}
+
+// CacheBillingRatioNEQ applies the NEQ predicate on the "cache_billing_ratio" field.
+func CacheBillingRatioNEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldCacheBillingRatio, v))
+}
+
+// CacheBillingRatioIn applies the In predicate on the "cache_billing_ratio" field.
+func CacheBillingRatioIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldCacheBillingRatio, vs...))
+}
+
+// CacheBillingRatioNotIn applies the NotIn predicate on the "cache_billing_ratio" field.
+func CacheBillingRatioNotIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldCacheBillingRatio, vs...))
+}
+
+// CacheBillingRatioGT applies the GT predicate on the "cache_billing_ratio" field.
+func CacheBillingRatioGT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldCacheBillingRatio, v))
+}
+
+// CacheBillingRatioGTE applies the GTE predicate on the "cache_billing_ratio" field.
+func CacheBillingRatioGTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldCacheBillingRatio, v))
+}
+
+// CacheBillingRatioLT applies the LT predicate on the "cache_billing_ratio" field.
+func CacheBillingRatioLT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldCacheBillingRatio, v))
+}
+
+// CacheBillingRatioLTE applies the LTE predicate on the "cache_billing_ratio" field.
+func CacheBillingRatioLTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldCacheBillingRatio, v))
 }
 
 // CacheCreation5mTokensEQ applies the EQ predicate on the "cache_creation_5m_tokens" field.

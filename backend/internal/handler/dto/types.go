@@ -560,6 +560,11 @@ type UsageLog struct {
 type AdminUsageLog struct {
 	UsageLog
 
+	// Cache billing audit fields are admin-only provider metering snapshots.
+	UpstreamInputTokens     int     `json:"upstream_input_tokens"`
+	UpstreamCacheReadTokens int     `json:"upstream_cache_read_tokens"`
+	CacheBillingRatio       float64 `json:"cache_billing_ratio"`
+
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.
 	// Omitted when no mapping was applied (requested model was used as-is).
 	UpstreamModel *string `json:"upstream_model,omitempty"`

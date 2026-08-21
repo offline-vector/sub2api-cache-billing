@@ -84,6 +84,16 @@ func (UsageLog) Fields() []ent.Field {
 			Default(0),
 		field.Int("cache_read_tokens").
 			Default(0),
+		field.Int("upstream_input_tokens").
+			Default(0).
+			Comment("Provider-reported total input tokens before billing reclassification"),
+		field.Int("upstream_cache_read_tokens").
+			Default(0).
+			Comment("Provider-reported cache-read tokens before billing reclassification"),
+			field.Float("cache_billing_ratio").
+				Default(1.0).
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,6)"}).
+			Comment("Fraction of upstream cache-read tokens retained in the cache billing bucket"),
 		field.Int("cache_creation_5m_tokens").
 			Default(0),
 		field.Int("cache_creation_1h_tokens").

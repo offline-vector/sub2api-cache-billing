@@ -939,6 +939,10 @@ type GatewayConfig struct {
 	// OpenAIHighEffortFirstOutputTimeoutSeconds: high/xhigh/max 推理的首个语义输出超时（秒）。
 	// 0 表示回退到 OpenAIFirstOutputTimeoutSeconds。
 	OpenAIHighEffortFirstOutputTimeoutSeconds int `mapstructure:"openai_high_effort_first_output_timeout_seconds"`
+	// OpenAICacheBillingRatio controls how much upstream OpenAI cache-read usage
+	// remains in the cache-read billing bucket. The remainder is billed as normal
+	// input while total input tokens stay unchanged. 1.0 preserves upstream behavior.
+	OpenAICacheBillingRatio float64 `mapstructure:"openai_cache_billing_ratio"`
 	// 请求体最大字节数，用于网关请求体大小限制
 	MaxBodySize int64 `mapstructure:"max_body_size"`
 	// TextMaxBodySize limits endpoints that cannot carry inline image/video payloads.
@@ -2329,6 +2333,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_response_header_timeout", 0)
 	viper.SetDefault("gateway.openai_first_output_timeout_seconds", 0)
 	viper.SetDefault("gateway.openai_high_effort_first_output_timeout_seconds", 0)
+	viper.SetDefault("gateway.openai_cache_billing_ratio", 1.0)
 	viper.SetDefault("gateway.log_upstream_error_body", true)
 	viper.SetDefault("gateway.log_upstream_error_body_max_bytes", 2048)
 	viper.SetDefault("gateway.inject_beta_for_apikey", false)
@@ -3459,6 +3464,10 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.OpenAIHTTP2.FallbackTTLSeconds < 0 {
 		return fmt.Errorf("gateway.openai_http2.fallback_ttl_seconds must be non-negative")
+	}
+	if c.Gateway.OpenAICacheBillingRatio <= 0 || c.Gateway.OpenAICacheBillingRatio > 1 ||
+		math.IsNaN(c.Gateway.OpenAICacheBillingRatio) || math.IsInf(c.Gateway.OpenAICacheBillingRatio, 0) {
+		return fmt.Errorf("gateway.openai_cache_billing_ratio must be finite and greater than 0 and at most 1")
 	}
 	if c.Gateway.OpenAIProxyStreamCircuit.FailureThreshold < 0 {
 		return fmt.Errorf("gateway.openai_proxy_stream_circuit.failure_threshold must be non-negative")

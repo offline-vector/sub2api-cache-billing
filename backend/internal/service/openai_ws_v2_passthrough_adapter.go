@@ -28,6 +28,9 @@ type openAIWSClientFrameConn struct {
 	// The relay observes upstream payloads, while clients must keep seeing the
 	// model identifier they supplied for the current turn.
 	restoreResponseModel func([]byte) []byte
+	// rewriteResponseUsage transforms only the downstream copy after the relay
+	// has already accumulated provider-reported usage for billing/audit.
+	rewriteResponseUsage func([]byte) []byte
 }
 
 // openAIWSPolicyEnforcingFrameConn wraps a client-side FrameConn and runs
@@ -639,6 +642,9 @@ func (c *openAIWSClientFrameConn) WriteFrame(ctx context.Context, msgType coderw
 		if c.restoreResponseModel != nil {
 			payload = c.restoreResponseModel(payload)
 		}
+		if c.rewriteResponseUsage != nil {
+			payload = c.rewriteResponseUsage(payload)
+		}
 	}
 	return c.conn.Write(ctx, msgType, payload)
 }
@@ -928,6 +934,10 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			}
 			requestModel, upstreamModel := usageMeta.turnModels("")
 			return replaceOpenAIWSMessageModel(payload, upstreamModel, requestModel)
+		},
+		rewriteResponseUsage: func(payload []byte) []byte {
+			rewritten, _ := rewriteOpenAICacheUsageForBilling(payload, s.openAICacheBillingRatioForClient(account))
+			return rewritten
 		},
 	}
 	policyClientConn := &openAIWSPolicyEnforcingFrameConn{

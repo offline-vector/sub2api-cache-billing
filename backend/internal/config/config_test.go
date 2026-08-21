@@ -417,6 +417,31 @@ func TestLoadOpenAIFirstOutputTimeoutsFromEnv(t *testing.T) {
 	require.Equal(t, 240, cfg.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds)
 }
 
+func TestLoadOpenAICacheBillingRatio(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, 1.0, cfg.Gateway.OpenAICacheBillingRatio)
+
+	resetViperWithJWTSecret(t)
+	t.Setenv("GATEWAY_OPENAI_CACHE_BILLING_RATIO", "0.60")
+	cfg, err = Load()
+	require.NoError(t, err)
+	require.Equal(t, 0.60, cfg.Gateway.OpenAICacheBillingRatio)
+}
+
+func TestValidateOpenAICacheBillingRatio(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	for _, invalid := range []float64{0, -0.1, 1.01, math.NaN(), math.Inf(1)} {
+		cfg.Gateway.OpenAICacheBillingRatio = invalid
+		require.ErrorContains(t, cfg.Validate(), "gateway.openai_cache_billing_ratio")
+	}
+}
+
 func TestValidateOpenAIFirstOutputTimeoutMinimum(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	cfg, err := Load()

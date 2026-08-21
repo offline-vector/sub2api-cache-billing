@@ -147,6 +147,11 @@ type UsageLog struct {
 	OutputTokens        int
 	CacheCreationTokens int
 	CacheReadTokens     int
+	// UpstreamInputTokens and UpstreamCacheReadTokens preserve provider-reported
+	// metering. InputTokens/CacheReadTokens are the mutually exclusive billable buckets.
+	UpstreamInputTokens     int
+	UpstreamCacheReadTokens int
+	CacheBillingRatio       float64
 
 	CacheCreation5mTokens int `gorm:"column:cache_creation_5m_tokens"`
 	CacheCreation1hTokens int `gorm:"column:cache_creation_1h_tokens"`

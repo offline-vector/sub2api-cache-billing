@@ -223,6 +223,11 @@ gateway:
   openai_first_output_timeout_seconds: 0
   # Optional high/xhigh/max override (seconds, 0=use the standard timeout)
   openai_high_effort_first_output_timeout_seconds: 0
+  # Fraction of upstream OpenAI cache-read tokens billed at the cache-read rate.
+  # The remainder is billed as normal input; total input tokens never change.
+  # Keep 1.0 for official behavior. This is an operator billing policy and should
+  # be disclosed to customers. Environment: GATEWAY_OPENAI_CACHE_BILLING_RATIO.
+  openai_cache_billing_ratio: 1.0
   # Max request body size in bytes (default: 256MB)
   # 请求体最大字节数（默认 256MB）
   max_body_size: 268435456

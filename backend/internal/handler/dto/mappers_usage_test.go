@@ -28,6 +28,25 @@ func TestUsageLogFromService_IncludesOpenAIWSMode(t *testing.T) {
 	require.False(t, UsageLogFromServiceAdmin(httpLog).OpenAIWSMode)
 }
 
+func TestUsageLogFromService_CacheBillingAuditIsAdminOnly(t *testing.T) {
+	t.Parallel()
+	log := &service.UsageLog{
+		UpstreamInputTokens:     100,
+		UpstreamCacheReadTokens: 80,
+		CacheBillingRatio:       0.6,
+	}
+
+	userJSON, err := json.Marshal(UsageLogFromService(log))
+	require.NoError(t, err)
+	require.NotContains(t, string(userJSON), "upstream_input_tokens")
+	require.NotContains(t, string(userJSON), "cache_billing_ratio")
+
+	admin := UsageLogFromServiceAdmin(log)
+	require.Equal(t, 100, admin.UpstreamInputTokens)
+	require.Equal(t, 80, admin.UpstreamCacheReadTokens)
+	require.Equal(t, 0.6, admin.CacheBillingRatio)
+}
+
 func TestUsageLogFromService_PrefersRequestTypeForLegacyFields(t *testing.T) {
 	t.Parallel()
 
