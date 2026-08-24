@@ -343,6 +343,64 @@ func TestOpenAIGatewayServiceRecordUsage_ZeroUsageStillWritesUsageLog(t *testing
 	require.Zero(t, billingRepo.lastCmd.AccountQuotaCost)
 }
 
+func TestOpenAIGatewayServiceRecordUsage_FastTierUsesAdjustedCacheAndPreservesUpstreamAudit(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(
+		usageRepo,
+		billingRepo,
+		&openAIRecordUsageUserRepoStub{},
+		&openAIRecordUsageSubRepoStub{},
+		nil,
+	)
+	svc.cfg.Gateway.OpenAICacheBillingRatio = 0.6
+	tier := "priority"
+	result := &OpenAIForwardResult{
+		RequestID:   "resp_fast_cache_ratio",
+		Model:       "gpt-5.5",
+		ServiceTier: &tier,
+		Usage: OpenAIUsage{
+			InputTokens:          100,
+			OutputTokens:         10,
+			CacheReadInputTokens: 80,
+		},
+		Duration: time.Second,
+	}
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result:  result,
+		APIKey:  &APIKey{ID: 501},
+		User:    &User{ID: 601},
+		Account: &Account{ID: 701, Platform: PlatformOpenAI},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 52, usageRepo.lastLog.InputTokens)
+	require.Equal(t, 48, usageRepo.lastLog.CacheReadTokens)
+	require.Equal(t, 100, usageRepo.lastLog.UpstreamInputTokens)
+	require.Equal(t, 80, usageRepo.lastLog.UpstreamCacheReadTokens)
+	require.Equal(t, 0.6, usageRepo.lastLog.CacheBillingRatio)
+	require.NotNil(t, usageRepo.lastLog.ServiceTier)
+	require.Equal(t, "priority", *usageRepo.lastLog.ServiceTier)
+
+	billableCost, err := svc.billingService.CalculateCostWithServiceTier("gpt-5.5", UsageTokens{
+		InputTokens:     52,
+		OutputTokens:    10,
+		CacheReadTokens: 48,
+	}, 1.1, "priority")
+	require.NoError(t, err)
+	upstreamCost, err := svc.billingService.CalculateCostWithServiceTier("gpt-5.5", UsageTokens{
+		InputTokens:     20,
+		OutputTokens:    10,
+		CacheReadTokens: 80,
+	}, 1.1, "priority")
+	require.NoError(t, err)
+	require.InDelta(t, billableCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, upstreamCost.TotalCost, usageRepo.lastLog.UpstreamTotalCost, 1e-12)
+	require.Greater(t, usageRepo.lastLog.TotalCost, usageRepo.lastLog.UpstreamTotalCost)
+	require.Equal(t, OpenAIUsage{InputTokens: 100, OutputTokens: 10, CacheReadInputTokens: 80}, result.Usage)
+}
+
 func TestOpenAIGatewayServiceRecordUsage_MissingPricingRecordsZeroCostUsageLog(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
@@ -2893,4 +2951,65 @@ func TestGatewayServiceCalculateRecordUsageCost_ChannelImageBillingNormalizesMis
 	require.Equal(t, string(BillingModeImage), cost.BillingMode)
 	require.InDelta(t, 0.44, cost.TotalCost, 1e-12)
 	require.InDelta(t, 0.44, cost.ActualCost, 1e-12)
+}
+
+func TestOpenAIGatewayServiceRecordUsage_ServiceTierDowngradedByUpstreamResponse(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+	serviceTier := "priority"
+	usage := OpenAIUsage{InputTokens: 100, OutputTokens: 50}
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:                   "resp_service_tier_downgraded",
+			ServiceTier:                 &serviceTier,
+			UpstreamResponseServiceTier: "default",
+			Usage:                       usage,
+			Model:                       "gpt-5.4",
+			Duration:                    time.Second,
+		},
+		APIKey:  &APIKey{ID: 1017},
+		User:    &User{ID: 2017},
+		Account: &Account{ID: 3017},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.NotNil(t, usageRepo.lastLog.ServiceTier)
+	require.Equal(t, "default", *usageRepo.lastLog.ServiceTier, "usage log must record the tier actually billed")
+
+	baseCost, calcErr := svc.billingService.CalculateCost("gpt-5.4", UsageTokens{InputTokens: 100, OutputTokens: 50}, 1.0)
+	require.NoError(t, calcErr)
+	require.InDelta(t, baseCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-10, "a request served at default must not pay the priority price")
+}
+
+func TestOpenAIGatewayServiceRecordUsage_ServiceTierNeverRaisedByUpstreamResponse(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+	usage := OpenAIUsage{InputTokens: 100, OutputTokens: 50}
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:                   "resp_service_tier_not_raised",
+			UpstreamResponseServiceTier: "priority",
+			Usage:                       usage,
+			Model:                       "gpt-5.4",
+			Duration:                    time.Second,
+		},
+		APIKey:  &APIKey{ID: 1018},
+		User:    &User{ID: 2018},
+		Account: &Account{ID: 3018},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Nil(t, usageRepo.lastLog.ServiceTier)
+
+	baseCost, calcErr := svc.billingService.CalculateCost("gpt-5.4", UsageTokens{InputTokens: 100, OutputTokens: 50}, 1.0)
+	require.NoError(t, calcErr)
+	require.InDelta(t, baseCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-10)
 }

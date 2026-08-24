@@ -154,6 +154,7 @@ type SettingService struct {
 	openAICacheBillingRatioLoaded     atomic.Bool
 	openAICacheBillingRatioRetryAt    atomic.Int64
 	openAICacheBillingRatioSF         singleflight.Group
+	openAIAPIKeyHealthBreakerCache    atomic.Value // *cachedOpenAIAPIKeyHealthBreakerSettings
 
 	channelMonitorRuntimeListenersMu sync.Mutex
 	channelMonitorRuntimeListeners   []func()
