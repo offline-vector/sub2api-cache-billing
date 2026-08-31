@@ -541,14 +541,14 @@ func (r *usageLogRepository) getModelStatsWithFiltersBySource(ctx context.Contex
 
 // GetGroupStatsWithFilters returns group usage statistics with optional filters
 func (r *usageLogRepository) GetGroupStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8) (results []usagestats.GroupStat, err error) {
-	return r.getGroupStatsWithFilters(ctx, startTime, endTime, userID, apiKeyID, accountID, groupID, "", requestType, stream, billingType, "", nil)
+	return r.getGroupStatsWithFilters(ctx, startTime, endTime, userID, apiKeyID, accountID, groupID, "", requestType, stream, billingType, "", nil, nil)
 }
 
 func (r *usageLogRepository) GetGroupStatsWithUsageFilters(ctx context.Context, startTime, endTime time.Time, filters UsageLogFilters) (results []usagestats.GroupStat, err error) {
-	return r.getGroupStatsWithFilters(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.Model, filters.RequestType, filters.Stream, filters.BillingType, filters.BillingMode, filters.UpstreamModelMismatch)
+	return r.getGroupStatsWithFilters(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.Model, filters.RequestType, filters.Stream, filters.BillingType, filters.BillingMode, filters.UpstreamModelMismatch, filters.NativeCompactionV2)
 }
 
-func (r *usageLogRepository) getGroupStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, model string, requestType *int16, stream *bool, billingType *int8, billingMode string, upstreamModelMismatch *bool) (results []usagestats.GroupStat, err error) {
+func (r *usageLogRepository) getGroupStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, model string, requestType *int16, stream *bool, billingType *int8, billingMode string, upstreamModelMismatch *bool, nativeCompactionV2 *bool) (results []usagestats.GroupStat, err error) {
 	query := fmt.Sprintf(`
 		SELECT
 			COALESCE(ul.group_id, 0) as group_id,
@@ -589,6 +589,7 @@ func (r *usageLogRepository) getGroupStatsWithFilters(ctx context.Context, start
 		args = append(args, model)
 	}
 	query, args = appendRequestTypeOrStreamQueryFilter(query, args, requestType, stream)
+	query, args = appendNativeCompactionV2QueryFilter(query, args, nativeCompactionV2, "ul")
 	if billingType != nil {
 		query += fmt.Sprintf(" AND ul.billing_type = $%d", len(args)+1)
 		args = append(args, int16(*billingType))
@@ -689,6 +690,7 @@ func (r *usageLogRepository) GetUserBreakdownStats(ctx context.Context, startTim
 		query += fmt.Sprintf(" AND ul.stream = $%d", len(args)+1)
 		args = append(args, *dim.Stream)
 	}
+	query, args = appendNativeCompactionV2QueryFilter(query, args, dim.NativeCompactionV2, "ul")
 	if dim.BillingType != nil {
 		query += fmt.Sprintf(" AND ul.billing_type = $%d", len(args)+1)
 		args = append(args, *dim.BillingType)

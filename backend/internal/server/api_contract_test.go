@@ -589,7 +589,8 @@ func TestAPIContracts(t *testing.T) {
 							"account_id": 200,
 								"request_id": "req_123",
 								"model": "claude-3",
-								"request_type": "stream",
+							"request_type": "stream",
+							"native_compaction_v2": false,
 								"openai_ws_mode": false,
 								"group_id": null,
 								"subscription_id": null,
@@ -922,6 +923,7 @@ func TestAPIContracts(t *testing.T) {
 					"openai_low_upstream_rate_priority_enabled": true,
 					"openai_oauth_scheduling_rate_multiplier": 0.05,
 					"openai_cache_billing_ratio": 1,
+					"openai_ttft_mode": "semantic",
 					"openai_advanced_scheduler_enabled": true,
 					"openai_advanced_scheduler_sticky_weighted_enabled": false,
 					"openai_advanced_scheduler_subscription_priority_enabled": false,
@@ -1237,6 +1239,7 @@ func TestAPIContracts(t *testing.T) {
 					"openai_low_upstream_rate_priority_enabled": false,
 					"openai_oauth_scheduling_rate_multiplier": 1,
 					"openai_cache_billing_ratio": 1,
+					"openai_ttft_mode": "semantic",
 					"openai_advanced_scheduler_enabled": false,
 					"openai_advanced_scheduler_sticky_weighted_enabled": false,
 					"openai_advanced_scheduler_subscription_priority_enabled": false,
@@ -2037,6 +2040,10 @@ func (s *stubAccountRepo) IncrementQuotaUsed(ctx context.Context, id int64, amou
 }
 
 func (s *stubAccountRepo) ResetQuotaUsed(ctx context.Context, id int64) error {
+	return errors.New("not implemented")
+}
+
+func (s *stubAccountRepo) ResetQuotaUsedAndClearRateLimitCooldown(ctx context.Context, id int64) error {
 	return errors.New("not implemented")
 }
 

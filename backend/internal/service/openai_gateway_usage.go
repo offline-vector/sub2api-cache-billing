@@ -39,6 +39,10 @@ type OpenAIRecordUsageInput struct {
 	PricingAt time.Time
 	// CyberBlocked 为 true 时把该用量行标记为 cyber（request_type=cyber），计费逻辑不变。
 	CyberBlocked bool
+	// NativeCompactionV2 is an orthogonal semantic flag captured by the
+	// Responses handler from stream=true + compaction_trigger. It never stores
+	// the request payload and does not replace the transport request type.
+	NativeCompactionV2 bool
 	ChannelUsageFields
 }
 
@@ -63,6 +67,7 @@ type CyberPolicyUsageInput struct {
 	SessionID          string
 	RequestPayloadHash string
 	APIKeyService      APIKeyQuotaUpdater
+	NativeCompactionV2 bool
 	ChannelUsageFields
 }
 
@@ -100,6 +105,7 @@ func (s *OpenAIGatewayService) RecordCyberPolicyUsageLog(ctx context.Context, in
 		APIKeyService:      in.APIKeyService,
 		ChannelUsageFields: in.ChannelUsageFields,
 		CyberBlocked:       true,
+		NativeCompactionV2: in.NativeCompactionV2,
 	}); err != nil {
 		logger.LegacyPrintf("service.openai_gateway", "cyber usage record failed: request_id=%s err=%v", in.RequestID, err)
 	}
@@ -143,10 +149,14 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	user := input.User
 	account := input.Account
 	subscription := input.Subscription
+	billingAccount, err := resolveCredentialAccount(ctx, s.accountRepo, account)
+	if err != nil {
+		return err
+	}
 	if !isGrokVideoUsageResult(result, nil) {
 		ApplyOpenAIImageBillingResolution(result)
 	}
-	logServiceTierBillingDowngrade("service.openai_gateway", account, result.RequestID, ApplyOpenAIServiceTierBillingResolution(result))
+	logServiceTierBillingDowngrade("service.openai_gateway", account, result.RequestID, ApplyOpenAIServiceTierBillingResolution(billingAccount, result))
 
 	// Keep upstream metering immutable and derive separate billable buckets.
 	// This prevents retries/idempotent log writes from applying the ratio twice.
@@ -183,7 +193,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	videoMultiplier := resolveVideoRateMultiplier(apiKey, baseMultiplier)
 
 	var cost *CostBreakdown
-	var err error
 	billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
 	if result.BillingModel != "" {
 		billingModel = strings.TrimSpace(result.BillingModel)
@@ -206,13 +215,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	serviceTier := ""
 	if result.ServiceTier != nil {
 		serviceTier = strings.TrimSpace(*result.ServiceTier)
-	}
-	billingAccount := account
-	if account.IsShadow() {
-		billingAccount, err = resolveCredentialAccount(ctx, s.accountRepo, account)
-		if err != nil {
-			return err
-		}
 	}
 	longContextBillingGate := openAILongContextBillingGate(billingAccount)
 	cost, err = s.calculateOpenAIRecordUsageCost(
@@ -276,8 +278,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 
 	// Recalculate the same request against the provider-reported token buckets.
-	// This counterfactual uses the final billing model/tier selected above, so the
-	// admin audit can show an exact policy delta without guessing unit prices.
+	// This counterfactual gives the admin audit an exact policy delta.
 	upstreamMeteredCost := cost
 	if cacheBilling.AppliedRatio < defaultOpenAICacheBillingRatio {
 		upstreamTokens := tokens
@@ -285,18 +286,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			cacheBilling.BillableCacheCreationTokens - cacheBilling.UpstreamCacheReadTokens
 		upstreamTokens.CacheReadTokens = cacheBilling.UpstreamCacheReadTokens
 		upstreamMeteredCost, err = s.calculateOpenAIRecordUsageCost(
-			ctx,
-			result,
-			apiKey,
-			billingModels,
-			multiplier,
-			imageMultiplier,
-			videoMultiplier,
-			baseMultiplier,
-			upstreamTokens,
-			serviceTier,
-			longContextBillingGate,
-			pricingAt,
+			ctx, result, apiKey, billingModels, multiplier, imageMultiplier,
+			videoMultiplier, baseMultiplier, upstreamTokens, serviceTier,
+			longContextBillingGate, pricingAt,
 		)
 		if err != nil {
 			logger.L().With(
@@ -354,34 +346,36 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 
 	usageLog := &UsageLog{
-		UserID:                  user.ID,
-		APIKeyID:                apiKey.ID,
-		AccountID:               account.ID,
-		RequestID:               requestID,
-		Model:                   result.Model,
-		RequestedModel:          requestedModel,
-		UpstreamModel:           optionalTrimmedStringPtr(result.UpstreamModel),
-		UpstreamResponseModel:   optionalTrimmedStringPtr(result.UpstreamResponseModel),
-		UpstreamModelMismatch:   upstreamModelMismatch(sentModel, result.UpstreamResponseModel),
-		ServiceTier:             result.ServiceTier,
-		ReasoningEffort:         result.ReasoningEffort,
-		InboundEndpoint:         optionalTrimmedStringPtr(input.InboundEndpoint),
-		UpstreamEndpoint:        optionalTrimmedStringPtr(input.UpstreamEndpoint),
-		InputTokens:             cacheBilling.BillableInputTokens,
-		OutputTokens:            result.Usage.OutputTokens,
-		CacheCreationTokens:     cacheBilling.BillableCacheCreationTokens,
-		CacheReadTokens:         cacheBilling.BillableCacheReadTokens,
-		UpstreamInputTokens:     cacheBilling.UpstreamInputTokens,
-		UpstreamCacheReadTokens: cacheBilling.UpstreamCacheReadTokens,
-		CacheBillingRatio:       cacheBilling.AppliedRatio,
-		ImageInputTokens:        result.Usage.ImageInputTokens,
-		ImageOutputTokens:       result.Usage.ImageOutputTokens,
-		ImageCount:              result.ImageCount,
-		ImageSize:               optionalTrimmedStringPtr(result.ImageSize),
-		ImageInputSize:          optionalTrimmedStringPtr(result.ImageInputSize),
-		ImageOutputSize:         optionalTrimmedStringPtr(result.ImageOutputSize),
-		ImageSizeSource:         optionalTrimmedStringPtr(result.ImageSizeSource),
-		ImageSizeBreakdown:      result.ImageSizeBreakdown,
+		UserID:                   user.ID,
+		APIKeyID:                 apiKey.ID,
+		AccountID:                account.ID,
+		RequestID:                requestID,
+		Model:                    result.Model,
+		RequestedModel:           requestedModel,
+		UpstreamModel:            optionalTrimmedStringPtr(result.UpstreamModel),
+		UpstreamResponseModel:    optionalTrimmedStringPtr(result.UpstreamResponseModel),
+		UpstreamModelMismatch:    upstreamModelMismatch(sentModel, result.UpstreamResponseModel),
+		ServiceTier:              result.ServiceTier,
+		ReasoningEffort:          result.ReasoningEffort,
+		RequestedReasoningEffort: coalesceRequestedReasoningEffort(result.RequestedReasoningEffort, result.ReasoningEffort),
+		InboundEndpoint:          optionalTrimmedStringPtr(input.InboundEndpoint),
+		UpstreamEndpoint:         optionalTrimmedStringPtr(input.UpstreamEndpoint),
+		InputTokens:              cacheBilling.BillableInputTokens,
+		OutputTokens:             result.Usage.OutputTokens,
+		CacheCreationTokens:      cacheBilling.BillableCacheCreationTokens,
+		CacheReadTokens:          cacheBilling.BillableCacheReadTokens,
+		UpstreamInputTokens:      cacheBilling.UpstreamInputTokens,
+		UpstreamCacheReadTokens:  cacheBilling.UpstreamCacheReadTokens,
+		CacheBillingRatio:        cacheBilling.AppliedRatio,
+		ImageInputTokens:         result.Usage.ImageInputTokens,
+		ImageOutputTokens:        result.Usage.ImageOutputTokens,
+		ImageCount:               result.ImageCount,
+		ImageSize:                optionalTrimmedStringPtr(result.ImageSize),
+		ImageInputSize:           optionalTrimmedStringPtr(result.ImageInputSize),
+		ImageOutputSize:          optionalTrimmedStringPtr(result.ImageOutputSize),
+		ImageSizeSource:          optionalTrimmedStringPtr(result.ImageSizeSource),
+		ImageSizeBreakdown:       result.ImageSizeBreakdown,
+		NativeCompactionV2:       input.NativeCompactionV2,
 	}
 	isVideoUsage := isGrokVideoUsageResult(result, billingModels)
 	if isVideoUsage {
@@ -404,8 +398,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if upstreamMeteredCost != nil {
 		usageLog.UpstreamTotalCost = upstreamMeteredCost.TotalCost
 	} else if cost != nil {
-		// Preserve a conservative auditable fallback instead of persisting a
-		// misleading zero when counterfactual pricing is temporarily unavailable.
 		usageLog.UpstreamTotalCost = cost.TotalCost
 	}
 	if isVideoUsage && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
@@ -462,8 +454,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.SubscriptionID = &subscription.ID
 	}
 
-	// 账号统计始终使用上游原始 Token/费用；客户扣费继续使用上面的
-	// billable Token。这样管理员 A 成本和账号额度不会被客户展示比例影响。
+	// 账号统计始终使用上游原始 Token/费用；客户扣费使用 billable Token。
 	if apiKey.GroupID != nil {
 		accountTokens := tokens
 		accountStandardCost := cost.TotalCost

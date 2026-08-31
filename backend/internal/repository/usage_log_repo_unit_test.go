@@ -71,6 +71,6 @@ func TestPrepareUsageLogInsertDefaultsUnsetCacheBillingRatioToNeutral(t *testing
 
 	prepared := prepareUsageLogInsert(log)
 
-	require.Equal(t, 1.0, prepared.args[60])
+	require.Equal(t, 1.0, prepared.args[61])
 	require.Zero(t, log.CacheBillingRatio, "preparing SQL args must not mutate the caller's log")
 }

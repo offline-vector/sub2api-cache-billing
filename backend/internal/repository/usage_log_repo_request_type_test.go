@@ -89,6 +89,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // video_duration_seconds
 			sqlmock.AnyArg(), // service_tier
 			sqlmock.AnyArg(), // reasoning_effort
+			sqlmock.AnyArg(), // requested_reasoning_effort
 			sqlmock.AnyArg(), // inbound_endpoint
 			sqlmock.AnyArg(), // upstream_endpoint
 			log.CacheTTLOverridden,
@@ -103,6 +104,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			log.UpstreamCacheReadTokens,
 			1.0, // unset cache_billing_ratio is normalized to the neutral ratio
 			log.UpstreamTotalCost,
+			log.NativeCompactionV2,
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
@@ -187,6 +189,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
 			log.CacheTTLOverridden,
 			log.LongContextBillingApplied,
 			sqlmock.AnyArg(), // channel_id
@@ -199,6 +202,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			log.UpstreamCacheReadTokens,
 			1.0, // unset cache_billing_ratio is normalized to the neutral ratio
 			log.UpstreamTotalCost,
+			log.NativeCompactionV2,
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
@@ -853,6 +857,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			sql.NullString{},
+			sql.NullString{}, // upstream_endpoint
 			false,
 			false,
 			sql.NullInt64{},
@@ -861,10 +866,11 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullFloat64{},
 			sql.NullString{},
-			0,   // upstream_input_tokens
-			0,   // upstream_cache_read_tokens
-			1.0, // cache_billing_ratio
-			0.0, // upstream_total_cost
+			0,     // upstream_input_tokens
+			0,     // upstream_cache_read_tokens
+			1.0,   // cache_billing_ratio
+			0.0,   // upstream_total_cost
+			false, // native_compaction_v2
 			now,
 		}})
 		require.NoError(t, err)
@@ -934,6 +940,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			sql.NullString{},
+			sql.NullString{},
 			false,
 			false,
 			sql.NullInt64{},   // channel_id
@@ -946,6 +953,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			8,                 // upstream_cache_read_tokens
 			0.6,               // cache_billing_ratio
 			1.2,               // upstream_total_cost
+			false,             // native_compaction_v2
 			now,
 		}})
 		require.NoError(t, err)
@@ -1002,6 +1010,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			sql.NullString{},
+			sql.NullString{},
 			false,
 			false,
 			sql.NullInt64{},   // channel_id
@@ -1014,6 +1023,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			0,                 // upstream_cache_read_tokens
 			1.0,               // cache_billing_ratio
 			0.0,               // upstream_total_cost
+			true,              // native_compaction_v2
 			now,
 		}})
 		require.NoError(t, err)
@@ -1066,6 +1076,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			sql.NullString{},
+			sql.NullString{},
 			false,
 			false,
 			sql.NullInt64{},   // channel_id
@@ -1078,6 +1089,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			0,                 // upstream_cache_read_tokens
 			1.0,               // cache_billing_ratio
 			0.0,               // upstream_total_cost
+			false,             // native_compaction_v2
 			now,
 		}})
 		require.NoError(t, err)
