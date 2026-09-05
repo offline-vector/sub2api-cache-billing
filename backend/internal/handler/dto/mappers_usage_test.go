@@ -30,7 +30,9 @@ func TestUsageLogFromService_IncludesOpenAIWSMode(t *testing.T) {
 
 func TestUsageLogFromService_CacheBillingAuditIsAdminOnly(t *testing.T) {
 	t.Parallel()
+	upstreamRequestID := "upstream-cache-audit"
 	log := &service.UsageLog{
+		UpstreamRequestID:       &upstreamRequestID,
 		UpstreamInputTokens:     100,
 		UpstreamCacheReadTokens: 80,
 		CacheBillingRatio:       0.6,
@@ -42,6 +44,8 @@ func TestUsageLogFromService_CacheBillingAuditIsAdminOnly(t *testing.T) {
 	require.NotContains(t, string(userJSON), "upstream_input_tokens")
 	require.NotContains(t, string(userJSON), "cache_billing_ratio")
 	require.NotContains(t, string(userJSON), "upstream_total_cost")
+	require.NotContains(t, string(userJSON), "upstream_request_id")
+	require.Equal(t, &upstreamRequestID, UsageLogFromServiceAdmin(log).UpstreamRequestID)
 
 	admin := UsageLogFromServiceAdmin(log)
 	require.Equal(t, 100, admin.UpstreamInputTokens)

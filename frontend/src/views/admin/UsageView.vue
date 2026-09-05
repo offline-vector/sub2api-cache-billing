@@ -614,7 +614,7 @@ const exportToExcel = async () => {
       t('admin.usage.cacheReadCost'), t('admin.usage.cacheCreationCost'),
       t('usage.rate'), t('usage.accountMultiplier'), 'Upstream Standard', t('usage.original'), t('usage.userBilled'), t('usage.accountBilled'), 'Policy Delta',
       t('usage.firstToken'), t('usage.duration'),
-      t('admin.usage.requestId'), t('usage.userAgent'), t('admin.usage.ipAddress')
+      t('admin.usage.requestId'), t('admin.usage.upstreamRequestId'), t('usage.userAgent'), t('admin.usage.ipAddress')
     ]
     const ws = XLSX.utils.aoa_to_sheet([headers])
     while (true) {
@@ -627,7 +627,7 @@ const exportToExcel = async () => {
         const audit = normalizeCacheBillingAudit(log)
         return [
           log.created_at, log.user?.email || '', log.api_key?.name || '', log.account?.name || '', log.model,
-          log.upstream_model || log.model, log.upstream_response_model || '', log.upstream_model_mismatch == null ? '' : t(log.upstream_model_mismatch ? 'common.yes' : 'common.no'), formatReasoningEffort(log.upstream_reasoning_effort || log.reasoning_effort), formatReasoningEffort(log.reasoning_effort), log.group?.name || '',
+          log.upstream_model || log.model, log.upstream_response_model || '', log.upstream_model_mismatch == null ? '' : t(log.upstream_model_mismatch ? 'common.yes' : 'common.no'), formatReasoningEffort(log.reasoning_effort), formatReasoningEffort(log.upstream_reasoning_effort || log.reasoning_effort), log.group?.name || '',
           log.inbound_endpoint || '', log.upstream_endpoint || '', getRequestTypeLabel(log),
           audit.upstreamUncachedInput, audit.upstreamCacheRead,
           log.input_tokens, log.output_tokens, log.cache_read_tokens, log.cache_creation_tokens,
@@ -640,7 +640,7 @@ const exportToExcel = async () => {
           ((log.account_stats_cost ?? audit.upstreamCost) * (log.account_rate_multiplier ?? 1)).toFixed(6),
           Math.max(0, (log.total_cost ?? 0) - audit.upstreamCost).toFixed(6),
           log.first_token_ms ?? '', log.duration_ms,
-          log.request_id || '', log.user_agent || '', log.ip_address || ''
+          log.request_id || '', log.upstream_request_id || '', log.user_agent || '', log.ip_address || ''
         ]
       })
       if (rows.length) {
@@ -663,10 +663,12 @@ const exportToExcel = async () => {
 
 // Column visibility
 const ALWAYS_VISIBLE = ['user', 'created_at']
-const DEFAULT_HIDDEN_COLUMNS = ['reasoning_effort', 'request_id', 'user_agent']
+const DEFAULT_HIDDEN_COLUMNS = ['reasoning_effort', 'request_id', 'upstream_request_id', 'user_agent']
 const HIDDEN_COLUMNS_KEY = 'usage-hidden-columns'
 const HIDDEN_COLUMNS_VERSION_KEY = 'usage-hidden-columns-version'
-const HIDDEN_COLUMNS_CURRENT_VERSION = 'request-id-hidden-by-default'
+// 隐藏列版本链：每级只把当级新增列加入隐藏集，不重置用户已显式打开的列。
+const HIDDEN_COLUMNS_PREV_VERSION = 'request-id-hidden-by-default'
+const HIDDEN_COLUMNS_CURRENT_VERSION = 'upstream-request-id-hidden-by-default'
 
 const allColumns = computed(() => [
   { key: 'user', label: t('admin.usage.user'), sortable: false },
@@ -683,6 +685,7 @@ const allColumns = computed(() => [
   { key: 'latency', label: t('usage.latency'), sortable: false },
   { key: 'created_at', label: t('usage.time'), sortable: true },
   { key: 'request_id', label: t('admin.usage.requestId'), sortable: false },
+  { key: 'upstream_request_id', label: t('admin.usage.upstreamRequestId'), sortable: false },
   { key: 'user_agent', label: t('usage.userAgent'), sortable: false },
   { key: 'ip_address', label: t('admin.usage.ipAddress'), sortable: false }
 ])
@@ -790,8 +793,12 @@ const loadSavedColumns = () => {
       (JSON.parse(saved) as string[]).forEach((key) => {
         hiddenColumns.add(key)
       })
-      if (localStorage.getItem(HIDDEN_COLUMNS_VERSION_KEY) !== HIDDEN_COLUMNS_CURRENT_VERSION) {
-        hiddenColumns.add('request_id')
+      const savedVersion = localStorage.getItem(HIDDEN_COLUMNS_VERSION_KEY)
+      if (savedVersion !== HIDDEN_COLUMNS_CURRENT_VERSION) {
+        if (savedVersion !== HIDDEN_COLUMNS_PREV_VERSION) {
+          hiddenColumns.add('request_id')
+        }
+        hiddenColumns.add('upstream_request_id')
         localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
         localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
       }
