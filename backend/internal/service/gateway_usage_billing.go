@@ -889,6 +889,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 				ImageOutputTokens:   providerUsage.ImageOutputTokens,
 			},
 			accountStandardCost,
+			pricingAt,
 		)
 		if usageLog.AccountStatsCost == nil {
 			usageLog.AccountStatsCost = &accountStandardCost

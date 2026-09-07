@@ -511,7 +511,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		}
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,
 			account.ID, *apiKey.GroupID, result.UpstreamModel, result.Model,
-			accountTokens, accountStandardCost,
+			accountTokens, accountStandardCost, pricingAt,
 		)
 		if usageLog.AccountStatsCost == nil {
 			usageLog.AccountStatsCost = &accountStandardCost
