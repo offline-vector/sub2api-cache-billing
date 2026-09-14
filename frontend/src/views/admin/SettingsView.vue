@@ -249,6 +249,20 @@
                   />
                   <span class="text-sm text-gray-500">0.01 - 1.00</span>
                 </div>
+                <div class="mt-4">
+                  <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ localText("缓存修改账号白名单", "Cache modification account allowlist") }}
+                  </label>
+                  <textarea
+                    v-model="form.rewrite_message_cache_control_account_whitelist"
+                    rows="2"
+                    class="form-input w-full font-mono text-xs"
+                    :placeholder="localText('例如：12, 34 或每行一个账号 ID', 'e.g. 12, 34 or one account ID per line')"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{ localText("命中的账号不做 OpenAI 缓存计费改写，并跳过消息缓存断点改写；留空表示不豁免任何账号。", "Matching accounts keep the original OpenAI cache billing ratio and skip message cache breakpoint rewrites; empty means no exemptions.") }}
+                  </p>
+                </div>
               </div>
 
               <div class="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
@@ -9860,6 +9874,7 @@ const form = reactive<SettingsForm>({
   claude_oauth_system_prompt_blocks: defaultClaudeOAuthSystemPromptBlocks,
   enable_anthropic_cache_ttl_1h_injection: false,
   rewrite_message_cache_control: false,
+  rewrite_message_cache_control_account_whitelist: "[]",
   enable_client_dateline_normalization: true,
   antigravity_user_agent_version: "",
   openai_codex_user_agent: "",
@@ -11472,6 +11487,8 @@ async function saveSettings() {
       enable_anthropic_cache_ttl_1h_injection:
         form.enable_anthropic_cache_ttl_1h_injection,
       rewrite_message_cache_control: form.rewrite_message_cache_control,
+      rewrite_message_cache_control_account_whitelist:
+        form.rewrite_message_cache_control_account_whitelist.trim(),
       enable_client_dateline_normalization:
         form.enable_client_dateline_normalization,
       antigravity_user_agent_version:

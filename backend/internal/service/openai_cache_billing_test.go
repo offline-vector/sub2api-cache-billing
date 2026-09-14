@@ -10,6 +10,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
@@ -163,6 +164,24 @@ func TestOpenAICacheBillingRatioSnapshotSurvivesForwardRetry(t *testing.T) {
 	if got, _ := openAICacheBillingRatioSnapshot(retry); got != 0.86 {
 		t.Fatalf("retry replaced request snapshot: got=%v", got)
 	}
+}
+
+func TestOpenAICacheBillingRatioAccountWhitelistUsesNeutralRatio(t *testing.T) {
+	// The same whitelist protects the account in both gateway implementations.
+	repo := &gatewayTTLSettingRepo{data: map[string]string{
+		SettingKeyRewriteMessageCacheControlAccountWhitelist: "42",
+	}}
+	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	account := &Account{ID: 42, Platform: PlatformOpenAI}
+	other := &Account{ID: 99, Platform: PlatformOpenAI}
+
+	gw := &GatewayService{settingService: NewSettingService(repo, &config.Config{Gateway: config.GatewayConfig{OpenAICacheBillingRatio: 0.6}})}
+	require.Equal(t, 1.0, gw.openAICacheBillingRatioForClient(context.Background(), account))
+	require.Equal(t, 0.6, gw.openAICacheBillingRatioForClient(context.Background(), other))
+
+	openai := &OpenAIGatewayService{settingService: NewSettingService(repo, &config.Config{Gateway: config.GatewayConfig{OpenAICacheBillingRatio: 0.6}})}
+	require.Equal(t, 1.0, openai.openAICacheBillingRatioForClient(context.Background(), account))
+	require.Equal(t, 0.6, openai.openAICacheBillingRatioForClient(context.Background(), other))
 }
 
 func TestRewriteOpenAICacheUsageForBilling(t *testing.T) {

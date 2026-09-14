@@ -420,7 +420,7 @@ func (s *GatewayService) applyClaudeCodeOAuthMimicryToBody(
 	//   1) messages cache：仅在配置开启时清除客户端断点并注入代理断点
 	//   2) tool rewrite：最后改 tools[*].name / tool_choice.name 并在 tools[-1]
 	//      上打断点；mapping 存入 gin.Context 供响应侧 bytes.Replace 还原。
-	body = s.rewriteMessageCacheControlIfEnabled(ctx, body)
+	body = s.rewriteMessageCacheControlIfEnabled(ctx, account, body)
 
 	if rw := buildToolNameRewriteFromBody(body); rw != nil {
 		body = applyToolNameRewriteToBody(body, rw)

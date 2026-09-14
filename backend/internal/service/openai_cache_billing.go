@@ -43,7 +43,11 @@ func (s *GatewayService) snapshotOpenAICacheBillingRatio(ctx context.Context, c 
 	if !gatewayOpenAICacheBillingEligible(account) {
 		return ctx
 	}
-	return withOpenAICacheBillingRatioSnapshot(ctx, c, s.currentOpenAICacheBillingRatio(ctx))
+	ratio := s.currentOpenAICacheBillingRatio(ctx)
+	if s != nil && s.settingService != nil && s.settingService.IsCacheModificationAccountWhitelisted(ctx, account.ID) {
+		ratio = defaultOpenAICacheBillingRatio
+	}
+	return withOpenAICacheBillingRatioSnapshot(ctx, c, ratio)
 }
 
 func openAICacheBillingRatioSnapshot(ctx context.Context) (float64, bool) {
@@ -156,6 +160,9 @@ func (s *GatewayService) openAICacheBillingRatioForClient(ctx context.Context, a
 	if ratio, ok := openAICacheBillingRatioSnapshot(ctx); ok {
 		return ratio
 	}
+	if s.settingService != nil && s.settingService.IsCacheModificationAccountWhitelisted(ctx, account.ID) {
+		return defaultOpenAICacheBillingRatio
+	}
 	return s.currentOpenAICacheBillingRatio(ctx)
 }
 
@@ -241,7 +248,11 @@ func (s *OpenAIGatewayService) snapshotOpenAICacheBillingRatio(ctx context.Conte
 	if account == nil || account.Platform != PlatformOpenAI {
 		return ctx
 	}
-	return withOpenAICacheBillingRatioSnapshot(ctx, c, s.currentOpenAICacheBillingRatio(ctx))
+	ratio := s.currentOpenAICacheBillingRatio(ctx)
+	if s != nil && s.settingService != nil && s.settingService.IsCacheModificationAccountWhitelisted(ctx, account.ID) {
+		ratio = defaultOpenAICacheBillingRatio
+	}
+	return withOpenAICacheBillingRatioSnapshot(ctx, c, ratio)
 }
 
 func (s *OpenAIGatewayService) openAICacheBillingRatioForClient(ctx context.Context, account *Account) float64 {
@@ -250,6 +261,9 @@ func (s *OpenAIGatewayService) openAICacheBillingRatioForClient(ctx context.Cont
 	}
 	if ratio, ok := openAICacheBillingRatioSnapshot(ctx); ok {
 		return ratio
+	}
+	if s.settingService != nil && s.settingService.IsCacheModificationAccountWhitelisted(ctx, account.ID) {
+		return defaultOpenAICacheBillingRatio
 	}
 	return s.currentOpenAICacheBillingRatio(ctx)
 }

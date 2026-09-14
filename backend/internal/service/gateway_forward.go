@@ -239,7 +239,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		// D/E/F: 可选 messages cache 策略 + 工具名混淆 + tools[-1] 断点
 		// 与 forward_as_chat_completions / forward_as_responses 路径对齐，
 		// 原生 /v1/messages 路径也走同一套可配置字段级改写。
-		if err := replaceBody(s.rewriteMessageCacheControlIfEnabled(ctx, body)); err != nil {
+		if err := replaceBody(s.rewriteMessageCacheControlIfEnabled(ctx, account, body)); err != nil {
 			return nil, err
 		}
 		if rw := buildToolNameRewriteFromBody(body); rw != nil {
