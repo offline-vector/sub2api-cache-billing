@@ -274,7 +274,12 @@
                   type="button"
                   data-testid="openai-cache-billing-save"
                   class="btn btn-primary btn-sm"
-                  :disabled="cacheBillingSaving || Math.abs(form.openai_cache_billing_ratio - savedCacheBillingRatio) < 0.000001"
+                  :disabled="
+                    cacheBillingSaving ||
+                    (Math.abs(form.openai_cache_billing_ratio - savedCacheBillingRatio) < 0.000001 &&
+                      form.rewrite_message_cache_control_account_whitelist.trim() ===
+                        savedCacheRewriteMessageCacheControlAccountWhitelist.trim())
+                  "
                   @click="saveCacheBillingRatio"
                 >
                   {{ cacheBillingSaving ? localText("保存中...", "Saving...") : localText("保存并立即生效", "Save and apply now") }}
@@ -9136,6 +9141,7 @@ const panelRateLimitLoading = ref(true);
 const panelRateLimitSaving = ref(false);
 const cacheBillingSaving = ref(false);
 const savedCacheBillingRatio = ref(1);
+const savedCacheRewriteMessageCacheControlAccountWhitelist = ref("[]");
 const cacheBillingPresets = [
   { value: 1, label: "100%" },
   { value: 0.9, label: "90%" },
@@ -10933,6 +10939,8 @@ async function loadSettings() {
       }
     }
     savedCacheBillingRatio.value = Number(settings.openai_cache_billing_ratio) || 1;
+    savedCacheRewriteMessageCacheControlAccountWhitelist.value =
+      String(settings.rewrite_message_cache_control_account_whitelist ?? form.rewrite_message_cache_control_account_whitelist ?? "[]");
     syncCaptchaProviderSelection();
     if (!form.claude_oauth_system_prompt_blocks?.trim()) {
       form.claude_oauth_system_prompt_blocks =
@@ -11109,11 +11117,22 @@ async function saveCacheBillingRatio(): Promise<void> {
   cacheBillingSaving.value = true;
   try {
     const updated = await settingsStepUp.run(() =>
-      adminAPI.settings.updateSettings({ openai_cache_billing_ratio: ratio }),
+      adminAPI.settings.updateSettings({
+        openai_cache_billing_ratio: ratio,
+        rewrite_message_cache_control_account_whitelist:
+          form.rewrite_message_cache_control_account_whitelist.trim(),
+      }),
     );
     const saved = Number(updated.openai_cache_billing_ratio);
     savedCacheBillingRatio.value = Number.isFinite(saved) && saved > 0 && saved <= 1 ? saved : ratio;
     form.openai_cache_billing_ratio = savedCacheBillingRatio.value;
+    savedCacheRewriteMessageCacheControlAccountWhitelist.value =
+      String(
+        updated.rewrite_message_cache_control_account_whitelist ??
+          form.rewrite_message_cache_control_account_whitelist.trim(),
+      );
+    form.rewrite_message_cache_control_account_whitelist =
+      savedCacheRewriteMessageCacheControlAccountWhitelist.value;
     appStore.showSuccess(localText("缓存计费口径已立即生效。", "Cache billing policy is now active."));
   } catch (error: unknown) {
     if (isStepUpCancelled(error)) return;
@@ -11729,6 +11748,10 @@ async function saveSettings() {
       if (value !== null && value !== undefined) {
         (form as Record<string, unknown>)[key] = value;
       }
+    }
+    if (updated.rewrite_message_cache_control_account_whitelist !== undefined) {
+      savedCacheRewriteMessageCacheControlAccountWhitelist.value =
+        String(updated.rewrite_message_cache_control_account_whitelist ?? "[]");
     }
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(updated));
     form.default_platform_quotas = normalizePlatformQuotasMap(updated.default_platform_quotas);

@@ -799,6 +799,30 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(showSuccess).toHaveBeenCalled();
   });
 
+  it("saves the cache rewrite account allowlist with the cache billing card", async () => {
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openGatewayTab(wrapper);
+
+    const allowlist = wrapper.get(
+      'textarea[placeholder*="例如：12, 34"]',
+    );
+    await allowlist.setValue("42, 7");
+
+    const saveButton = wrapper.get('[data-testid="openai-cache-billing-save"]');
+    expect(saveButton.attributes("disabled")).toBeUndefined();
+    await saveButton.trigger("click");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        openai_cache_billing_ratio: 1,
+        rewrite_message_cache_control_account_whitelist: "42, 7",
+      }),
+    );
+  });
+
   it("does not render legacy visible payment method controls", async () => {
     const wrapper = mountView();
 
