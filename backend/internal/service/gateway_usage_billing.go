@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"log/slog"
+	"math"
 	"strings"
 	"time"
 
@@ -80,8 +81,22 @@ type postUsageBillingParams struct {
 	RequestPayloadHash    string
 	IsSubscriptionBill    bool
 	AccountRateMultiplier float64
-	APIKeyService         APIKeyQuotaUpdater
-	Platform              string // 来自 APIKey 关联 Group 的平台标识
+	// AccountStandardCost is the upstream-metered standard cost used only for
+	// account quota/cost accounting. Nil preserves the legacy Cost.TotalCost
+	// behavior for platforms without a separate upstream audit snapshot.
+	AccountStandardCost *float64
+	APIKeyService       APIKeyQuotaUpdater
+	Platform            string // 来自 APIKey 关联 Group 的平台标识
+}
+
+func (p *postUsageBillingParams) accountStandardCost() float64 {
+	if p == nil || p.Cost == nil {
+		return 0
+	}
+	if p.AccountStandardCost != nil {
+		return math.Max(*p.AccountStandardCost, 0)
+	}
+	return p.Cost.TotalCost
 }
 
 // PlatformFromAPIKey 从 APIKey 关联的 Group 推导 platform 名称。
@@ -171,7 +186,7 @@ func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *bill
 	}
 
 	if p.shouldUpdateAccountQuota() {
-		accountCost := cost.TotalCost * p.AccountRateMultiplier
+		accountCost := p.accountStandardCost() * p.AccountRateMultiplier
 		if err := deps.accountRepo.IncrementQuotaUsed(billingCtx, p.Account.ID, accountCost); err != nil {
 			slog.Error("increment account quota used failed", "account_id", p.Account.ID, "cost", accountCost, "error", err)
 		}
@@ -324,7 +339,7 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 		cmd.APIKeyRateLimitCost = p.Cost.ActualCost
 	}
 	if p.shouldUpdateAccountQuota() {
-		cmd.AccountQuotaCost = p.Cost.TotalCost * p.AccountRateMultiplier
+		cmd.AccountQuotaCost = p.accountStandardCost() * p.AccountRateMultiplier
 	}
 
 	cmd.Normalize()
@@ -501,7 +516,7 @@ func notifyAccountQuota(p *postUsageBillingParams, deps *billingDeps, result *Us
 		)
 		return
 	}
-	accountCost := p.Cost.TotalCost * p.AccountRateMultiplier
+	accountCost := p.accountStandardCost() * p.AccountRateMultiplier
 	var quotaState *AccountQuotaState
 	if result != nil {
 		quotaState = result.QuotaState
@@ -721,23 +736,35 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	subscription := input.Subscription
 	ApplyForwardImageBillingResolution(result)
 	logServiceTierBillingDowngrade("service.gateway", account, result.RequestID, ApplyForwardServiceTierBillingResolution(result))
+	providerResult := *result
+	providerUsage := result.Usage
+	billingUsage := providerUsage
 
 	// 强制缓存计费：将 input_tokens 转为 cache_read_input_tokens
 	// 用于粘性会话切换时的特殊计费处理
-	if input.ForceCacheBilling && result.Usage.InputTokens > 0 {
+	if input.ForceCacheBilling && billingUsage.InputTokens > 0 {
 		logger.LegacyPrintf("service.gateway", "force_cache_billing: %d input_tokens → cache_read_input_tokens (account=%d)",
-			result.Usage.InputTokens, account.ID)
-		result.Usage.CacheReadInputTokens += result.Usage.InputTokens
-		result.Usage.InputTokens = 0
+			billingUsage.InputTokens, account.ID)
+		billingUsage.CacheReadInputTokens += billingUsage.InputTokens
+		billingUsage.InputTokens = 0
 	}
 
 	// Cache TTL Override: 确保计费时 token 分类与账号设置一致。
 	// 账号级设置优先；全局 1h 请求注入开启时，默认把 usage 计费归回 5m。
 	cacheTTLOverridden := false
 	if overrideTarget, ok := s.resolveCacheTTLUsageOverrideTarget(ctx, account); ok {
-		applyCacheTTLOverride(&result.Usage, overrideTarget)
-		cacheTTLOverridden = (result.Usage.CacheCreation5mTokens + result.Usage.CacheCreation1hTokens) > 0
+		applyCacheTTLOverride(&billingUsage, overrideTarget)
+		cacheTTLOverridden = (billingUsage.CacheCreation5mTokens + billingUsage.CacheCreation1hTokens) > 0
 	}
+
+	cacheBilling := applyGatewayOpenAICacheBillingRatio(
+		providerUsage,
+		billingUsage,
+		s.openAICacheBillingRatioFor(ctx, &providerResult, account),
+	)
+	billingResult := providerResult
+	billingResult.Usage = cacheBilling.BillableUsage
+	result = &billingResult
 
 	// 获取费率倍数（优先级：用户专属 > 分组默认 > 系统默认）
 	multiplier := 1.0
@@ -784,6 +811,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 	// 计算费用
 	cost := s.calculateRecordUsageCost(ctx, result, apiKey, billingModel, multiplier, imageMultiplier, pricingAt)
+	effectiveBillingModel := billingModel
 	// response_model：按上游成功响应自报的模型计费（渠道显式开启才生效）。
 	// 采纳条件见 responseModelBillingDeclaration + hasIdentifiedResponseModelPricing
 	// + responseModelBillingAdoptable。任一条件不满足都静默回落基线，即开启本模式前的
@@ -802,8 +830,25 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 				// 因此这里不改写它，改由日志记录实际生效的计费基准。
 				logResponseModelBillingApplied("service.gateway", account, result.RequestID, billingModel, responseModel, cost, responseCost)
 				cost = responseCost
+				effectiveBillingModel = responseModel
 			}
 		}
+	}
+
+	// Recalculate the same request against provider-reported buckets. This is
+	// used for administrator audit and account quota/cost accounting only; the
+	// customer-facing deduction continues to use the billable result above.
+	upstreamMeteredCost := cost
+	if providerUsage != cacheBilling.BillableUsage {
+		upstreamMeteredCost = s.calculateRecordUsageCost(
+			ctx,
+			&providerResult,
+			apiKey,
+			effectiveBillingModel,
+			multiplier,
+			imageMultiplier,
+			pricingAt,
+		)
 	}
 
 	// 判断计费方式：订阅模式 vs 余额模式
@@ -817,22 +862,38 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	accountRateMultiplier := account.BillingRateMultiplier()
 	usageLog := s.buildRecordUsageLog(ctx, input, result, apiKey, user, account, subscription,
 		requestedModel, multiplier, imageMultiplier, accountRateMultiplier, billingType, cacheTTLOverridden, cost)
+	usageLog.UpstreamInputTokens = cacheBilling.UpstreamInputTokens
+	usageLog.UpstreamCacheReadTokens = cacheBilling.UpstreamCacheReadTokens
+	usageLog.CacheBillingRatio = cacheBilling.AppliedRatio
+	if upstreamMeteredCost != nil {
+		usageLog.UpstreamTotalCost = upstreamMeteredCost.TotalCost
+	} else if cost != nil {
+		usageLog.UpstreamTotalCost = cost.TotalCost
+	}
 
 	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）
 	if apiKey.GroupID != nil {
+		accountStandardCost := cost.TotalCost
+		if upstreamMeteredCost != nil {
+			accountStandardCost = upstreamMeteredCost.TotalCost
+		}
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,
 			account.ID, *apiKey.GroupID, result.UpstreamModel, result.Model,
 			// Anthropic's input_tokens excludes cache_read and cache_creation (billed separately);
 			// OpenAI gateway uses actualInputTokens which also excludes cache_read for the same reason.
 			UsageTokens{
-				InputTokens:         result.Usage.InputTokens,
-				OutputTokens:        result.Usage.OutputTokens,
-				CacheCreationTokens: result.Usage.CacheCreationInputTokens,
-				CacheReadTokens:     result.Usage.CacheReadInputTokens,
-				ImageOutputTokens:   result.Usage.ImageOutputTokens,
+				InputTokens:         providerUsage.InputTokens,
+				OutputTokens:        providerUsage.OutputTokens,
+				CacheCreationTokens: providerUsage.CacheCreationInputTokens,
+				CacheReadTokens:     providerUsage.CacheReadInputTokens,
+				ImageOutputTokens:   providerUsage.ImageOutputTokens,
 			},
-			cost.TotalCost, pricingAt,
+			accountStandardCost,
+			pricingAt,
 		)
+		if usageLog.AccountStatsCost == nil {
+			usageLog.AccountStatsCost = &accountStandardCost
+		}
 	}
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
@@ -853,6 +914,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		}
 	}
 	requestID := usageLog.RequestID
+	accountStandardCost := usageLog.UpstreamTotalCost
 	_, billingErr := applyUsageBilling(ctx, requestID, usageLog, &postUsageBillingParams{
 		Cost:                  cost,
 		User:                  user,
@@ -862,6 +924,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		RequestPayloadHash:    resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
 		IsSubscriptionBill:    isSubscriptionBilling,
 		AccountRateMultiplier: accountRateMultiplier,
+		AccountStandardCost:   &accountStandardCost,
 		APIKeyService:         input.APIKeyService,
 		Platform:              quotaPlatform,
 	}, s.billingDeps(), s.usageBillingRepo)

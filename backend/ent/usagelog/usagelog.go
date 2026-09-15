@@ -52,6 +52,12 @@ const (
 	FieldCacheCreationTokens = "cache_creation_tokens"
 	// FieldCacheReadTokens holds the string denoting the cache_read_tokens field in the database.
 	FieldCacheReadTokens = "cache_read_tokens"
+	// FieldUpstreamInputTokens holds the string denoting the upstream_input_tokens field in the database.
+	FieldUpstreamInputTokens = "upstream_input_tokens"
+	// FieldUpstreamCacheReadTokens holds the string denoting the upstream_cache_read_tokens field in the database.
+	FieldUpstreamCacheReadTokens = "upstream_cache_read_tokens"
+	// FieldCacheBillingRatio holds the string denoting the cache_billing_ratio field in the database.
+	FieldCacheBillingRatio = "cache_billing_ratio"
 	// FieldCacheCreation5mTokens holds the string denoting the cache_creation_5m_tokens field in the database.
 	FieldCacheCreation5mTokens = "cache_creation_5m_tokens"
 	// FieldCacheCreation1hTokens holds the string denoting the cache_creation_1h_tokens field in the database.
@@ -68,6 +74,8 @@ const (
 	FieldTotalCost = "total_cost"
 	// FieldActualCost holds the string denoting the actual_cost field in the database.
 	FieldActualCost = "actual_cost"
+	// FieldUpstreamTotalCost holds the string denoting the upstream_total_cost field in the database.
+	FieldUpstreamTotalCost = "upstream_total_cost"
 	// FieldRateMultiplier holds the string denoting the rate_multiplier field in the database.
 	FieldRateMultiplier = "rate_multiplier"
 	// FieldLongContextBillingApplied holds the string denoting the long_context_billing_applied field in the database.
@@ -179,6 +187,9 @@ var Columns = []string{
 	FieldOutputTokens,
 	FieldCacheCreationTokens,
 	FieldCacheReadTokens,
+	FieldUpstreamInputTokens,
+	FieldUpstreamCacheReadTokens,
+	FieldCacheBillingRatio,
 	FieldCacheCreation5mTokens,
 	FieldCacheCreation1hTokens,
 	FieldInputCost,
@@ -187,6 +198,7 @@ var Columns = []string{
 	FieldCacheReadCost,
 	FieldTotalCost,
 	FieldActualCost,
+	FieldUpstreamTotalCost,
 	FieldRateMultiplier,
 	FieldLongContextBillingApplied,
 	FieldAccountRateMultiplier,
@@ -244,6 +256,12 @@ var (
 	DefaultCacheCreationTokens int
 	// DefaultCacheReadTokens holds the default value on creation for the "cache_read_tokens" field.
 	DefaultCacheReadTokens int
+	// DefaultUpstreamInputTokens holds the default value on creation for the "upstream_input_tokens" field.
+	DefaultUpstreamInputTokens int
+	// DefaultUpstreamCacheReadTokens holds the default value on creation for the "upstream_cache_read_tokens" field.
+	DefaultUpstreamCacheReadTokens int
+	// DefaultCacheBillingRatio holds the default value on creation for the "cache_billing_ratio" field.
+	DefaultCacheBillingRatio float64
 	// DefaultCacheCreation5mTokens holds the default value on creation for the "cache_creation_5m_tokens" field.
 	DefaultCacheCreation5mTokens int
 	// DefaultCacheCreation1hTokens holds the default value on creation for the "cache_creation_1h_tokens" field.
@@ -260,6 +278,8 @@ var (
 	DefaultTotalCost float64
 	// DefaultActualCost holds the default value on creation for the "actual_cost" field.
 	DefaultActualCost float64
+	// DefaultUpstreamTotalCost holds the default value on creation for the "upstream_total_cost" field.
+	DefaultUpstreamTotalCost float64
 	// DefaultRateMultiplier holds the default value on creation for the "rate_multiplier" field.
 	DefaultRateMultiplier float64
 	// DefaultLongContextBillingApplied holds the default value on creation for the "long_context_billing_applied" field.
@@ -395,6 +415,21 @@ func ByCacheReadTokens(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCacheReadTokens, opts...).ToFunc()
 }
 
+// ByUpstreamInputTokens orders the results by the upstream_input_tokens field.
+func ByUpstreamInputTokens(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamInputTokens, opts...).ToFunc()
+}
+
+// ByUpstreamCacheReadTokens orders the results by the upstream_cache_read_tokens field.
+func ByUpstreamCacheReadTokens(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamCacheReadTokens, opts...).ToFunc()
+}
+
+// ByCacheBillingRatio orders the results by the cache_billing_ratio field.
+func ByCacheBillingRatio(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCacheBillingRatio, opts...).ToFunc()
+}
+
 // ByCacheCreation5mTokens orders the results by the cache_creation_5m_tokens field.
 func ByCacheCreation5mTokens(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCacheCreation5mTokens, opts...).ToFunc()
@@ -433,6 +468,11 @@ func ByTotalCost(opts ...sql.OrderTermOption) OrderOption {
 // ByActualCost orders the results by the actual_cost field.
 func ByActualCost(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldActualCost, opts...).ToFunc()
+}
+
+// ByUpstreamTotalCost orders the results by the upstream_total_cost field.
+func ByUpstreamTotalCost(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamTotalCost, opts...).ToFunc()
 }
 
 // ByRateMultiplier orders the results by the rate_multiplier field.

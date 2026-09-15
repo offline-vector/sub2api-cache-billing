@@ -226,7 +226,7 @@ func TestRewriteMessageCacheControlIfEnabled_DefaultKeepsClientAnchors(t *testin
 		{"role":"user","content":[{"type":"text","text":"latest","cache_control":{"type":"ephemeral","ttl":"5m"}}]}
 	]}`)
 
-	out := (&GatewayService{}).rewriteMessageCacheControlIfEnabled(context.Background(), body)
+	out := (&GatewayService{}).rewriteMessageCacheControlIfEnabled(context.Background(), nil, body)
 
 	require.JSONEq(t, string(body), string(out))
 	require.Equal(t, "1h", gjson.GetBytes(out, "messages.0.content.0.cache_control.ttl").String())
@@ -246,11 +246,28 @@ func TestRewriteMessageCacheControlIfEnabled_OptInPreservesLegacyRewrite(t *test
 	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
 	svc := &GatewayService{settingService: NewSettingService(repo, &config.Config{})}
 
-	out := svc.rewriteMessageCacheControlIfEnabled(context.Background(), body)
+	out := svc.rewriteMessageCacheControlIfEnabled(context.Background(), nil, body)
 
 	require.Equal(t, "5m", gjson.GetBytes(out, "messages.0.content.0.cache_control.ttl").String())
 	require.False(t, gjson.GetBytes(out, "messages.2.content.0.cache_control").Exists())
 	require.Equal(t, "5m", gjson.GetBytes(out, "messages.3.content.0.cache_control.ttl").String())
+}
+
+func TestRewriteMessageCacheControlIfEnabled_AccountWhitelistSkipsRewrite(t *testing.T) {
+	// The whitelist is evaluated against the selected upstream account ID.
+	body := []byte(`{"messages":[{"role":"user","content":[{"type":"text","text":"stable","cache_control":{"type":"ephemeral","ttl":"1h"}}]}]}`)
+	repo := &gatewayTTLSettingRepo{data: map[string]string{
+		SettingKeyRewriteMessageCacheControl:                 "true",
+		SettingKeyRewriteMessageCacheControlAccountWhitelist: "42, 7, 42",
+	}}
+	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	svc := &GatewayService{settingService: NewSettingService(repo, &config.Config{})}
+
+	whitelisted := svc.rewriteMessageCacheControlIfEnabled(context.Background(), &Account{ID: 42}, body)
+	require.JSONEq(t, string(body), string(whitelisted))
+
+	other := svc.rewriteMessageCacheControlIfEnabled(context.Background(), &Account{ID: 99}, body)
+	require.Equal(t, "5m", gjson.GetBytes(other, "messages.0.content.0.cache_control.ttl").String())
 }
 
 func TestBuildToolNameRewriteFromBody_ReverseOrderedByLengthDesc(t *testing.T) {

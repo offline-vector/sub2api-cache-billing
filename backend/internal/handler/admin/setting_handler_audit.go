@@ -476,6 +476,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.RewriteMessageCacheControl != after.RewriteMessageCacheControl {
 		changed = append(changed, "rewrite_message_cache_control")
 	}
+	if before.RewriteMessageCacheControlAccountWhitelist != after.RewriteMessageCacheControlAccountWhitelist {
+		changed = append(changed, "rewrite_message_cache_control_account_whitelist")
+	}
 	if before.EnableClientDatelineNormalization != after.EnableClientDatelineNormalization {
 		changed = append(changed, "enable_client_dateline_normalization")
 	}

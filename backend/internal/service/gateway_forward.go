@@ -89,6 +89,7 @@ func sleepWithContext(ctx context.Context, d time.Duration) error {
 
 // Forward 转发请求到Claude API
 func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, parsed *ParsedRequest) (result *ForwardResult, err error) {
+	ctx = s.snapshotOpenAICacheBillingRatio(ctx, c, account)
 	startTime := time.Now()
 	if parsed == nil {
 		return nil, fmt.Errorf("parse request: empty request")
@@ -233,7 +234,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		// D/E/F: 可选 messages cache 策略 + 工具名混淆 + tools[-1] 断点
 		// 与 forward_as_chat_completions / forward_as_responses 路径对齐，
 		// 原生 /v1/messages 路径也走同一套可配置字段级改写。
-		if err := replaceBody(s.rewriteMessageCacheControlIfEnabled(ctx, body)); err != nil {
+		if err := replaceBody(s.rewriteMessageCacheControlIfEnabled(ctx, account, body)); err != nil {
 			return nil, err
 		}
 		if rw := buildToolNameRewriteFromBody(body); rw != nil {

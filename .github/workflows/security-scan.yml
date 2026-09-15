@@ -1,6 +1,8 @@
+# Private fork security checks; keep aligned with upstream when rebasing.
 name: Security Scan
 
 on:
+  workflow_dispatch:
   push:
   pull_request:
   schedule:

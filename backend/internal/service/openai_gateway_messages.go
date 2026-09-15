@@ -34,6 +34,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	defaultMappedModel string,
 ) (*OpenAIForwardResult, error) {
 	rememberOpenCodeInboundBody(c, body)
+	ctx = s.snapshotOpenAICacheBillingRatio(ctx, c, account)
 	beginUpstreamResponseModelObservation(c)
 	ClearActualOpenAIUpstreamEndpoint(c)
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {

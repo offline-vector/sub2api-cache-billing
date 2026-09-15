@@ -101,6 +101,10 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // account_stats_cost
 			sqlmock.AnyArg(), // upstream_request_id
 			sqlmock.AnyArg(), // session_id
+			log.UpstreamInputTokens,
+			log.UpstreamCacheReadTokens,
+			1.0, // unset cache_billing_ratio is normalized to the neutral ratio
+			log.UpstreamTotalCost,
 			log.NativeCompactionV2,
 			createdAt,
 		).
@@ -183,10 +187,10 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // video_resolution
 			sqlmock.AnyArg(), // video_duration_seconds
 			serviceTier,
-			sqlmock.AnyArg(), // reasoning_effort
-			sqlmock.AnyArg(), // requested_reasoning_effort
-			sqlmock.AnyArg(), // inbound_endpoint
-			sqlmock.AnyArg(), // upstream_endpoint
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
 			log.CacheTTLOverridden,
 			log.LongContextBillingApplied,
 			sqlmock.AnyArg(), // channel_id
@@ -196,6 +200,10 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // account_stats_cost
 			sqlmock.AnyArg(), // upstream_request_id
 			sqlmock.AnyArg(), // session_id
+			log.UpstreamInputTokens,
+			log.UpstreamCacheReadTokens,
+			1.0, // unset cache_billing_ratio is normalized to the neutral ratio
+			log.UpstreamTotalCost,
 			log.NativeCompactionV2,
 			createdAt,
 		).
@@ -260,30 +268,6 @@ func TestPrepareUsageLogInsert_ArgCountMatchesTypes(t *testing.T) {
 	})
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-}
-
-func TestPrepareUsageLogInsert_PersistsNativeCompactionV2WithoutChangingRequestType(t *testing.T) {
-	log := &service.UsageLog{
-		UserID:             1,
-		APIKeyID:           2,
-		AccountID:          3,
-		RequestID:          "req-native-compaction-v2",
-		Model:              "gpt-5",
-		RequestedModel:     "gpt-5",
-		RequestType:        service.RequestTypeStream,
-		NativeCompactionV2: true,
-		CreatedAt:          time.Date(2025, 1, 5, 13, 0, 0, 0, time.UTC),
-	}
-
-	prepared := prepareUsageLogInsert(log)
-
-	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, "boolean", usageLogInsertArgTypes[len(usageLogInsertArgTypes)-2])
-	require.Equal(t, true, prepared.args[len(prepared.args)-2])
-	require.Equal(t, int16(service.RequestTypeStream), prepared.args[30])
-	require.Equal(t, service.RequestTypeStream, log.RequestType)
-	require.True(t, log.Stream)
-	require.False(t, log.OpenAIWSMode)
 }
 
 func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
@@ -408,26 +392,6 @@ func TestUsageLogRepositoryListWithFiltersRequestTypePriority(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestUsageLogRepositoryListWithFiltersNativeCompactionV2(t *testing.T) {
-	db, mock := newSQLMock(t)
-	repo := &usageLogRepository{sql: db}
-	nativeCompactionV2 := true
-	filters := usagestats.UsageLogFilters{NativeCompactionV2: &nativeCompactionV2, ExactTotal: true}
-
-	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM usage_logs WHERE native_compaction_v2 = \\$1").
-		WithArgs(true).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(0)))
-	mock.ExpectQuery("SELECT .* FROM usage_logs WHERE native_compaction_v2 = \\$1 ORDER BY id DESC LIMIT \\$2 OFFSET \\$3").
-		WithArgs(true, 20, 0).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}))
-
-	logs, page, err := repo.ListWithFilters(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 20}, filters)
-	require.NoError(t, err)
-	require.Empty(t, logs)
-	require.NotNil(t, page)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestUsageLogRepositoryListWithFiltersRequestID(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &usageLogRepository{sql: db}
@@ -505,74 +469,6 @@ func TestUsageLogRepositoryGetUsageTrendWithUsageFiltersRequestedModelSource(t *
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestUsageLogRepositoryUsageAggregatesFilterNativeCompactionV2(t *testing.T) {
-	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	end := start.Add(24 * time.Hour)
-	nativeCompactionV2 := true
-	filters := usagestats.UsageLogFilters{NativeCompactionV2: &nativeCompactionV2}
-
-	t.Run("stats", func(t *testing.T) {
-		db, mock := newSQLMock(t)
-		repo := &usageLogRepository{sql: db}
-		mock.ExpectQuery("(?s)FROM usage_logs\\s+WHERE native_compaction_v2 = \\$1.*GROUP BY GROUPING SETS").
-			WithArgs(true).
-			WillReturnRows(sqlmock.NewRows([]string{
-				"inbound_grouped", "upstream_grouped", "inbound_endpoint", "upstream_endpoint",
-				"requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens",
-				"cost", "actual_cost", "account_cost", "avg_duration_ms",
-			}))
-
-		_, err := repo.GetStatsWithFilters(context.Background(), filters)
-		require.NoError(t, err)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("trend bypasses preaggregate", func(t *testing.T) {
-		db, mock := newSQLMock(t)
-		repo := &usageLogRepository{sql: db}
-		mock.ExpectQuery("(?s)FROM usage_logs.*AND native_compaction_v2 = \\$3").
-			WithArgs(start, end, true).
-			WillReturnRows(sqlmock.NewRows([]string{"date", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "cost", "actual_cost"}))
-
-		_, err := repo.GetUsageTrendWithUsageFilters(context.Background(), start, end, "day", filters)
-		require.NoError(t, err)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("model", func(t *testing.T) {
-		db, mock := newSQLMock(t)
-		repo := &usageLogRepository{sql: db}
-		mock.ExpectQuery("(?s)FROM usage_logs.*AND native_compaction_v2 = \\$3").
-			WithArgs(start, end, true).
-			WillReturnRows(sqlmock.NewRows([]string{
-				"model", "requests", "input_tokens", "output_tokens", "cache_creation_tokens",
-				"cache_read_tokens", "total_tokens", "cost", "actual_cost", "account_cost",
-			}))
-
-		_, err := repo.GetModelStatsWithUsageFiltersBySource(context.Background(), start, end, filters, usagestats.ModelSourceRequested)
-		require.NoError(t, err)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("group", func(t *testing.T) {
-		db, mock := newSQLMock(t)
-		repo := &usageLogRepository{sql: db}
-		mock.ExpectQuery("(?s)FROM usage_logs ul.*AND ul.native_compaction_v2 = \\$3").
-			WithArgs(start, end, true).
-			WillReturnRows(sqlmock.NewRows([]string{"group_id", "group_name", "requests", "total_tokens", "cost", "actual_cost", "account_cost"}))
-
-		_, err := repo.GetGroupStatsWithUsageFilters(context.Background(), start, end, filters)
-		require.NoError(t, err)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-}
-
-func TestShouldUsePreaggregatedTrendRejectsNativeCompactionV2Filter(t *testing.T) {
-	nativeCompactionV2 := true
-	require.True(t, shouldUsePreaggregatedTrend("day", 0, 0, 0, 0, "", nil, nil, nil, "", nil, nil))
-	require.False(t, shouldUsePreaggregatedTrend("day", 0, 0, 0, 0, "", nil, nil, nil, "", nil, &nativeCompactionV2))
-}
-
 func TestUsageLogRepositoryGetModelStatsWithFiltersRequestTypePriority(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &usageLogRepository{sql: db}
@@ -604,8 +500,9 @@ func TestUsageLogRepositoryGetUserModelStatsUsesRequestedModel(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"model", "requests", "input_tokens", "output_tokens",
 			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
-			"cost", "actual_cost", "account_cost",
-		}).AddRow("gpt-5.5", int64(2), int64(10), int64(20), int64(0), int64(0), int64(30), 0.1, 0.08, 0.07))
+			"cost", "actual_cost", "account_cost", "upstream_input_tokens",
+			"upstream_cache_read_tokens", "upstream_cost", "reclassified_cache_tokens",
+		}).AddRow("gpt-5.5", int64(2), int64(10), int64(20), int64(0), int64(0), int64(30), 0.1, 0.08, 0.07, int64(10), int64(0), 0.1, int64(0)))
 
 	stats, err := repo.GetUserModelStats(context.Background(), 7, start, end)
 	require.NoError(t, err)
@@ -638,12 +535,16 @@ func TestUsageLogRepositoryGetStatsWithFiltersRequestedModelSource(t *testing.T)
 			"cost",
 			"actual_cost",
 			"account_cost",
+			"upstream_input_tokens",
+			"upstream_cache_read_tokens",
+			"upstream_cost",
+			"reclassified_cache_tokens",
 			"avg_duration_ms",
 		}).
-			AddRow(1, 1, nil, nil, int64(1), int64(2), int64(3), int64(1), int64(3), 1.2, 1.0, 1.2, 20.0).
-			AddRow(0, 1, "/v1/responses", nil, int64(1), int64(2), int64(3), int64(1), int64(3), 1.2, 1.0, 1.2, 20.0).
-			AddRow(1, 0, nil, "/v1/responses", int64(1), int64(2), int64(3), int64(1), int64(3), 1.2, 1.0, 1.2, 20.0).
-			AddRow(0, 0, "/v1/responses", "/v1/responses", int64(1), int64(2), int64(3), int64(1), int64(3), 1.2, 1.0, 1.2, 20.0))
+			AddRow(1, 1, nil, nil, int64(1), int64(2), int64(3), int64(1), int64(3), 1.2, 1.0, 1.2, int64(1), int64(4), 1.0, int64(1), 20.0).
+			AddRow(0, 1, "/v1/responses", nil, int64(1), int64(2), int64(3), int64(1), int64(3), 1.2, 1.0, 1.2, int64(1), int64(4), 1.0, int64(1), 20.0).
+			AddRow(1, 0, nil, "/v1/responses", int64(1), int64(2), int64(3), int64(1), int64(3), 1.2, 1.0, 1.2, int64(1), int64(4), 1.0, int64(1), 20.0).
+			AddRow(0, 0, "/v1/responses", "/v1/responses", int64(1), int64(2), int64(3), int64(1), int64(3), 1.2, 1.0, 1.2, int64(1), int64(4), 1.0, int64(1), 20.0))
 
 	stats, err := repo.GetStatsWithFilters(context.Background(), filters)
 	require.NoError(t, err)
@@ -679,8 +580,12 @@ func TestUsageLogRepositoryGetStatsWithFiltersRequestTypePriority(t *testing.T) 
 			"cost",
 			"actual_cost",
 			"account_cost",
+			"upstream_input_tokens",
+			"upstream_cache_read_tokens",
+			"upstream_cost",
+			"reclassified_cache_tokens",
 			"avg_duration_ms",
-		}).AddRow(1, 1, nil, nil, int64(1), int64(2), int64(3), int64(1), int64(3), 1.2, 1.0, 1.2, 20.0))
+		}).AddRow(1, 1, nil, nil, int64(1), int64(2), int64(3), int64(1), int64(3), 1.2, 1.0, 1.2, int64(1), int64(4), 1.0, int64(1), 20.0))
 
 	stats, err := repo.GetStatsWithFilters(context.Background(), filters)
 	require.NoError(t, err)
@@ -703,10 +608,11 @@ func TestUsageLogRepositoryGetModelStatsAccountCostColumn(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"model", "requests", "input_tokens", "output_tokens",
 			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
-			"cost", "actual_cost", "account_cost",
+			"cost", "actual_cost", "account_cost", "upstream_input_tokens",
+			"upstream_cache_read_tokens", "upstream_cost", "reclassified_cache_tokens",
 		}).
-			AddRow("claude-opus-4-6", int64(10), int64(100), int64(200), int64(5), int64(3), int64(308), 2.5, 2.0, 1.8).
-			AddRow("claude-sonnet-4-6", int64(5), int64(50), int64(100), int64(0), int64(0), int64(150), 1.0, 0.8, 0.7))
+			AddRow("claude-opus-4-6", int64(10), int64(100), int64(200), int64(5), int64(3), int64(308), 2.5, 2.0, 1.8, int64(100), int64(3), 2.5, int64(0)).
+			AddRow("claude-sonnet-4-6", int64(5), int64(50), int64(100), int64(0), int64(0), int64(150), 1.0, 0.8, 0.7, int64(50), int64(0), 1.0, int64(0)))
 
 	results, err := repo.GetModelStatsWithFilters(context.Background(), start, end, 0, 0, 0, 0, nil, nil, nil)
 	require.NoError(t, err)
@@ -733,8 +639,9 @@ func TestUsageLogRepositoryGetModelStatsWithUsageFiltersAppliesRequestedModelFil
 		WillReturnRows(sqlmock.NewRows([]string{
 			"model", "requests", "input_tokens", "output_tokens",
 			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
-			"cost", "actual_cost", "account_cost",
-		}).AddRow("gpt-5", int64(1), int64(10), int64(20), int64(0), int64(0), int64(30), 0.1, 0.08, 0.07))
+			"cost", "actual_cost", "account_cost", "upstream_input_tokens",
+			"upstream_cache_read_tokens", "upstream_cost", "reclassified_cache_tokens",
+		}).AddRow("gpt-5", int64(1), int64(10), int64(20), int64(0), int64(0), int64(30), 0.1, 0.08, 0.07, int64(10), int64(0), 0.1, int64(0)))
 
 	results, err := repo.GetModelStatsWithUsageFiltersBySource(context.Background(), start, end, filters, usagestats.ModelSourceRequested)
 	require.NoError(t, err)
@@ -754,10 +661,11 @@ func TestUsageLogRepositoryGetGroupStatsAccountCostColumn(t *testing.T) {
 		WithArgs(start, end).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"group_id", "group_name", "requests", "total_tokens",
-			"cost", "actual_cost", "account_cost",
+			"cost", "actual_cost", "account_cost", "upstream_total_tokens",
+			"upstream_cost", "reclassified_cache_tokens",
 		}).
-			AddRow(int64(1), "azure-cc", int64(100), int64(5000), 10.0, 8.5, 7.2).
-			AddRow(int64(2), "max", int64(50), int64(2000), 5.0, 4.0, 3.5))
+			AddRow(int64(1), "azure-cc", int64(100), int64(5000), 10.0, 8.5, 7.2, int64(5000), 9.0, int64(100)).
+			AddRow(int64(2), "max", int64(50), int64(2000), 5.0, 4.0, 3.5, int64(2000), 5.0, int64(0)))
 
 	results, err := repo.GetGroupStatsWithFilters(context.Background(), start, end, 0, 0, 0, 0, nil, nil, nil)
 	require.NoError(t, err)
@@ -784,8 +692,9 @@ func TestUsageLogRepositoryGetGroupStatsWithUsageFiltersAppliesRequestedModelFil
 		WithArgs(start, end, "gpt-5").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"group_id", "group_name", "requests", "total_tokens",
-			"cost", "actual_cost", "account_cost",
-		}).AddRow(int64(1), "default", int64(1), int64(30), 0.1, 0.08, 0.07))
+			"cost", "actual_cost", "account_cost", "upstream_total_tokens",
+			"upstream_cost", "reclassified_cache_tokens",
+		}).AddRow(int64(1), "default", int64(1), int64(30), 0.1, 0.08, 0.07, int64(30), 0.1, int64(0)))
 
 	results, err := repo.GetGroupStatsWithUsageFilters(context.Background(), start, end, filters)
 	require.NoError(t, err)
@@ -805,8 +714,9 @@ func TestUsageLogRepositoryGetStatsWithFiltersAlwaysReturnsAccountCost(t *testin
 		WillReturnRows(sqlmock.NewRows([]string{
 			"inbound_grouped", "upstream_grouped", "inbound_endpoint", "upstream_endpoint",
 			"requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens",
-			"cost", "actual_cost", "account_cost", "avg_duration_ms",
-		}).AddRow(1, 1, nil, nil, int64(50), int64(1000), int64(2000), int64(60), int64(40), 15.0, 12.5, 11.0, 100.0))
+			"cost", "actual_cost", "account_cost", "upstream_input_tokens", "upstream_cache_read_tokens",
+			"upstream_cost", "reclassified_cache_tokens", "avg_duration_ms",
+		}).AddRow(1, 1, nil, nil, int64(50), int64(1000), int64(2000), int64(60), int64(40), 15.0, 12.5, 11.0, int64(1000), int64(40), 15.0, int64(0), 100.0))
 
 	stats, err := repo.GetStatsWithFilters(context.Background(), filters)
 	require.NoError(t, err)
@@ -949,7 +859,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			sql.NullString{},
-			sql.NullString{},
+			sql.NullString{}, // upstream_endpoint
 			false,
 			false,
 			sql.NullInt64{},
@@ -959,6 +869,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{},
 			sql.NullString{}, // upstream_request_id
 			sql.NullString{},
+			0,     // upstream_input_tokens
+			0,     // upstream_cache_read_tokens
+			1.0,   // cache_billing_ratio
+			0.0,   // upstream_total_cost
 			false, // native_compaction_v2
 			now,
 		}})
@@ -1039,6 +953,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // account_stats_cost
 			sql.NullString{},  // upstream_request_id
 			sql.NullString{},  // session_id
+			10,                // upstream_input_tokens
+			8,                 // upstream_cache_read_tokens
+			0.6,               // cache_billing_ratio
+			1.2,               // upstream_total_cost
 			false,             // native_compaction_v2
 			now,
 		}})
@@ -1048,6 +966,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 		require.Equal(t, service.RequestTypeWSV2, log.RequestType)
 		require.True(t, log.Stream)
 		require.True(t, log.OpenAIWSMode)
+		require.Equal(t, 10, log.UpstreamInputTokens)
+		require.Equal(t, 8, log.UpstreamCacheReadTokens)
+		require.Equal(t, 0.6, log.CacheBillingRatio)
+		require.Equal(t, 1.2, log.UpstreamTotalCost)
 	})
 
 	t.Run("request_type_unknown_falls_back_to_legacy", func(t *testing.T) {
@@ -1102,6 +1024,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // account_stats_cost
 			sql.NullString{},  // upstream_request_id
 			sql.NullString{},  // session_id
+			0,                 // upstream_input_tokens
+			0,                 // upstream_cache_read_tokens
+			1.0,               // cache_billing_ratio
+			0.0,               // upstream_total_cost
 			true,              // native_compaction_v2
 			now,
 		}})
@@ -1111,7 +1037,6 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 		require.Equal(t, service.RequestTypeStream, log.RequestType)
 		require.True(t, log.Stream)
 		require.False(t, log.OpenAIWSMode)
-		require.True(t, log.NativeCompactionV2)
 	})
 
 	t.Run("service_tier_is_scanned", func(t *testing.T) {
@@ -1166,6 +1091,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // account_stats_cost
 			sql.NullString{},  // upstream_request_id
 			sql.NullString{},  // session_id
+			0,                 // upstream_input_tokens
+			0,                 // upstream_cache_read_tokens
+			1.0,               // cache_billing_ratio
+			0.0,               // upstream_total_cost
 			false,             // native_compaction_v2
 			now,
 		}})

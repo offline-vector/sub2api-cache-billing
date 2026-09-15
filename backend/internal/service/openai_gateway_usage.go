@@ -176,21 +176,21 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 	logServiceTierBillingDowngrade("service.openai_gateway", account, result.RequestID, ApplyOpenAIServiceTierBillingResolution(billingAccount, result))
 
-	// OpenAI input_tokens 是总输入，包含缓存读取和缓存写入明细。
-	// 将三类 token 拆成互斥桶，避免缓存写入同时按普通输入和 cache_write 重复计费。
-	actualInputTokens := result.Usage.InputTokens - result.Usage.CacheReadInputTokens - result.Usage.CacheCreationInputTokens
-	if actualInputTokens < 0 {
-		actualInputTokens = 0
-	}
+	// Keep upstream metering immutable and derive separate billable buckets.
+	// This prevents retries/idempotent log writes from applying the ratio twice.
+	cacheBilling := applyOpenAICacheBillingRatio(
+		result.Usage,
+		s.openAICacheBillingRatioFor(ctx, result, account, input.CyberBlocked),
+	)
 
 	// Calculate cost
 	tokens := UsageTokens{
-		InputTokens:          actualInputTokens,
+		InputTokens:          cacheBilling.BillableInputTokens,
 		ImageInputTokens:     max(result.Usage.ImageInputTokens-result.Usage.ImageCacheReadTokens, 0),
 		ImageCacheReadTokens: result.Usage.ImageCacheReadTokens,
 		OutputTokens:         result.Usage.OutputTokens,
-		CacheCreationTokens:  result.Usage.CacheCreationInputTokens,
-		CacheReadTokens:      result.Usage.CacheReadInputTokens,
+		CacheCreationTokens:  cacheBilling.BillableCacheCreationTokens,
+		CacheReadTokens:      cacheBilling.BillableCacheReadTokens,
 		ImageOutputTokens:    result.Usage.ImageOutputTokens,
 	}
 
@@ -296,6 +296,29 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		}
 	}
 
+	// Recalculate the same request against the provider-reported token buckets.
+	// This counterfactual gives the admin audit an exact policy delta.
+	upstreamMeteredCost := cost
+	if cacheBilling.AppliedRatio < defaultOpenAICacheBillingRatio {
+		upstreamTokens := tokens
+		upstreamTokens.InputTokens = cacheBilling.UpstreamInputTokens -
+			cacheBilling.BillableCacheCreationTokens - cacheBilling.UpstreamCacheReadTokens
+		upstreamTokens.CacheReadTokens = cacheBilling.UpstreamCacheReadTokens
+		upstreamMeteredCost, err = s.calculateOpenAIRecordUsageCost(
+			ctx, result, apiKey, billingModels, multiplier, imageMultiplier,
+			videoMultiplier, baseMultiplier, upstreamTokens, serviceTier,
+			longContextBillingGate, pricingAt,
+		)
+		if err != nil {
+			logger.L().With(
+				zap.String("component", "service.openai_gateway"),
+				zap.String("request_id", result.RequestID),
+				zap.Int64("account_id", account.ID),
+			).Warn("openai_usage.upstream_metered_cost_unavailable", zap.Error(err))
+			upstreamMeteredCost = nil
+		}
+	}
+
 	// Free Fast changes only the customer charge. Keep priority TotalCost and
 	// service_tier for upstream accounting, but evaluate ActualCost once more at
 	// the Standard tier using the same channel, peak, and long-context policy.
@@ -391,10 +414,13 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		RequestedReasoningEffort: coalesceRequestedReasoningEffort(result.RequestedReasoningEffort, result.ReasoningEffort),
 		InboundEndpoint:          optionalTrimmedStringPtr(input.InboundEndpoint),
 		UpstreamEndpoint:         optionalTrimmedStringPtr(input.UpstreamEndpoint),
-		InputTokens:              actualInputTokens,
+		InputTokens:              cacheBilling.BillableInputTokens,
 		OutputTokens:             result.Usage.OutputTokens,
-		CacheCreationTokens:      result.Usage.CacheCreationInputTokens,
-		CacheReadTokens:          result.Usage.CacheReadInputTokens,
+		CacheCreationTokens:      cacheBilling.BillableCacheCreationTokens,
+		CacheReadTokens:          cacheBilling.BillableCacheReadTokens,
+		UpstreamInputTokens:      cacheBilling.UpstreamInputTokens,
+		UpstreamCacheReadTokens:  cacheBilling.UpstreamCacheReadTokens,
+		CacheBillingRatio:        cacheBilling.AppliedRatio,
 		ImageInputTokens:         result.Usage.ImageInputTokens,
 		ImageOutputTokens:        result.Usage.ImageOutputTokens,
 		ImageCount:               result.ImageCount,
@@ -422,6 +448,11 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.TotalCost = cost.TotalCost
 		usageLog.ActualCost = cost.ActualCost
 		usageLog.LongContextBillingApplied = cost.LongContextBillingApplied
+	}
+	if upstreamMeteredCost != nil {
+		usageLog.UpstreamTotalCost = upstreamMeteredCost.TotalCost
+	} else if cost != nil {
+		usageLog.UpstreamTotalCost = cost.TotalCost
 	}
 	if isVideoUsage && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
 		usageLog.RateMultiplier = videoMultiplier
@@ -477,12 +508,23 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.SubscriptionID = &subscription.ID
 	}
 
-	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）
+	// 账号统计始终使用上游原始 Token/费用；客户扣费使用 billable Token。
 	if apiKey.GroupID != nil {
+		accountTokens := tokens
+		accountStandardCost := cost.TotalCost
+		if upstreamMeteredCost != nil {
+			accountTokens.InputTokens = cacheBilling.UpstreamInputTokens -
+				cacheBilling.BillableCacheCreationTokens - cacheBilling.UpstreamCacheReadTokens
+			accountTokens.CacheReadTokens = cacheBilling.UpstreamCacheReadTokens
+			accountStandardCost = upstreamMeteredCost.TotalCost
+		}
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,
 			account.ID, *apiKey.GroupID, result.UpstreamModel, result.Model,
-			tokens, cost.TotalCost, pricingAt,
+			accountTokens, accountStandardCost, pricingAt,
 		)
+		if usageLog.AccountStatsCost == nil {
+			usageLog.AccountStatsCost = &accountStandardCost
+		}
 	}
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
@@ -500,6 +542,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 
 	billingErr := func() error {
+		accountStandardCost := usageLog.UpstreamTotalCost
 		_, err := applyUsageBilling(ctx, requestID, usageLog, &postUsageBillingParams{
 			Cost:                  cost,
 			User:                  user,
@@ -509,6 +552,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			RequestPayloadHash:    resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
 			IsSubscriptionBill:    isSubscriptionBilling,
 			AccountRateMultiplier: accountRateMultiplier,
+			AccountStandardCost:   &accountStandardCost,
 			APIKeyService:         input.APIKeyService,
 			Platform:              quotaPlatform,
 		}, s.billingDeps(), s.usageBillingRepo)

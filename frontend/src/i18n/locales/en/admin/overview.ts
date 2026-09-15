@@ -47,6 +47,8 @@ export default {
       cache: 'Cache',
       actual: 'Actual',
       standard: 'Standard',
+      customerStandard: 'Customer standard cost',
+      upstreamStandard: 'Upstream standard cost',
       accountCost: 'Cost',
       noDataAvailable: 'No data available',
       recentUsage: 'Recent Usage',

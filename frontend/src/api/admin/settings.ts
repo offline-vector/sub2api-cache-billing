@@ -633,6 +633,7 @@ export interface SystemSettings {
   claude_oauth_system_prompt_blocks: string;
   enable_anthropic_cache_ttl_1h_injection: boolean;
   rewrite_message_cache_control: boolean;
+  rewrite_message_cache_control_account_whitelist: string;
   enable_client_dateline_normalization: boolean;
   antigravity_user_agent_version: string;
   openai_codex_user_agent: string;
@@ -684,6 +685,7 @@ export interface SystemSettings {
   payment_visible_method_wxpay_enabled?: boolean;
   openai_low_upstream_rate_priority_enabled?: boolean;
   openai_oauth_scheduling_rate_multiplier?: number;
+  openai_cache_billing_ratio?: number;
   openai_advanced_scheduler_enabled?: boolean;
   openai_advanced_scheduler_sticky_weighted_enabled?: boolean;
   openai_advanced_scheduler_subscription_priority_enabled?: boolean;
@@ -953,6 +955,7 @@ export interface UpdateSettingsRequest {
   claude_oauth_system_prompt_blocks?: string;
   enable_anthropic_cache_ttl_1h_injection?: boolean;
   rewrite_message_cache_control?: boolean;
+  rewrite_message_cache_control_account_whitelist?: string;
   enable_client_dateline_normalization?: boolean;
   antigravity_user_agent_version?: string;
   openai_codex_user_agent?: string;
@@ -1001,6 +1004,7 @@ export interface UpdateSettingsRequest {
   payment_visible_method_wxpay_enabled?: boolean;
   openai_low_upstream_rate_priority_enabled?: boolean;
   openai_oauth_scheduling_rate_multiplier?: number;
+  openai_cache_billing_ratio?: number;
   openai_advanced_scheduler_enabled?: boolean;
   openai_advanced_scheduler_sticky_weighted_enabled?: boolean;
   openai_advanced_scheduler_subscription_priority_enabled?: boolean;

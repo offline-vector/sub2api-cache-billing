@@ -126,6 +126,13 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	if err := s.normalizeOpenAIAdvancedSchedulerOverrides(settings); err != nil {
 		return nil, err
 	}
+	// SystemSettings is also used by internal callers that predate this field.
+	// Its zero value means omitted; the HTTP DTO uses *float64 and rejects an
+	// explicitly submitted zero before it reaches this method.
+	if settings.OpenAICacheBillingRatio < 0 || settings.OpenAICacheBillingRatio > 1 ||
+		math.IsNaN(settings.OpenAICacheBillingRatio) || math.IsInf(settings.OpenAICacheBillingRatio, 0) {
+		return nil, infraerrors.BadRequest("INVALID_OPENAI_CACHE_BILLING_RATIO", "openai_cache_billing_ratio must be finite and greater than 0 and at most 1")
+	}
 	settings.PaymentVisibleMethodAlipaySource = alipaySource
 	settings.PaymentVisibleMethodWxpaySource = wxpaySource
 	settings.WeChatConnectAppID = strings.TrimSpace(settings.WeChatConnectAppID)
@@ -480,6 +487,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyClaudeOAuthSystemPromptBlocks] = settings.ClaudeOAuthSystemPromptBlocks
 	updates[SettingKeyEnableAnthropicCacheTTL1hInjection] = strconv.FormatBool(settings.EnableAnthropicCacheTTL1hInjection)
 	updates[SettingKeyRewriteMessageCacheControl] = strconv.FormatBool(settings.RewriteMessageCacheControl)
+	updates[SettingKeyRewriteMessageCacheControlAccountWhitelist] = normalizeAccountIDWhitelist(settings.RewriteMessageCacheControlAccountWhitelist)
 	updates[SettingKeyEnableClientDatelineNormalization] = strconv.FormatBool(settings.EnableClientDatelineNormalization)
 	updates[SettingKeyAntigravityUserAgentVersion] = antigravity.NormalizeUserAgentVersion(settings.AntigravityUserAgentVersion)
 	updates[SettingKeyOpenAICodexUserAgent] = strings.TrimSpace(settings.OpenAICodexUserAgent)
@@ -500,6 +508,9 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingPaymentVisibleMethodWxpayEnabled] = strconv.FormatBool(settings.PaymentVisibleMethodWxpayEnabled)
 	updates[SettingKeyOpenAILowUpstreamRatePriorityEnabled] = strconv.FormatBool(settings.OpenAILowUpstreamRatePriorityEnabled)
 	updates[SettingKeyOpenAIOAuthSchedulingRateMultiplier] = strconv.FormatFloat(settings.OpenAIOAuthSchedulingRateMultiplier, 'f', -1, 64)
+	if settings.OpenAICacheBillingRatio > 0 {
+		updates[SettingKeyOpenAICacheBillingRatio] = strconv.FormatFloat(settings.OpenAICacheBillingRatio, 'f', -1, 64)
+	}
 	updates[openAIAdvancedSchedulerSettingKey] = strconv.FormatBool(settings.OpenAIAdvancedSchedulerEnabled)
 	updates[SettingKeyOpenAIAdvancedSchedulerStickyWeightedEnabled] = strconv.FormatBool(settings.OpenAIAdvancedSchedulerStickyWeightedEnabled)
 	updates[SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled] = strconv.FormatBool(settings.OpenAIAdvancedSchedulerSubscriptionPriorityEnabled)
@@ -691,6 +702,9 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 	if settings == nil {
 		return
 	}
+	if settings.OpenAICacheBillingRatio > 0 {
+		s.storeOpenAICacheBillingRatio(settings.OpenAICacheBillingRatio)
+	}
 
 	// 先使 inflight singleflight 失效，再刷新缓存，缩小旧值覆盖新值的竞态窗口
 	versionBoundsSF.Forget("version_bounds")
@@ -706,17 +720,18 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 	})
 	gatewayForwardingSF.Forget("gateway_forwarding")
 	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
-		openAITTFTMode:                   normalizeOpenAITTFTMode(settings.OpenAITTFTMode),
-		fingerprintUnification:           settings.EnableFingerprintUnification,
-		metadataPassthrough:              settings.EnableMetadataPassthrough,
-		cchSigning:                       settings.EnableCCHSigning,
-		claudeOAuthSystemPromptInjection: settings.EnableClaudeOAuthSystemPromptInjection,
-		claudeOAuthSystemPrompt:          settings.ClaudeOAuthSystemPrompt,
-		claudeOAuthSystemPromptBlocks:    settings.ClaudeOAuthSystemPromptBlocks,
-		anthropicCacheTTL1hInjection:     settings.EnableAnthropicCacheTTL1hInjection,
-		rewriteMessageCacheControl:       settings.RewriteMessageCacheControl,
-		clientDatelineNormalization:      settings.EnableClientDatelineNormalization,
-		expiresAt:                        time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
+		openAITTFTMode:                             normalizeOpenAITTFTMode(settings.OpenAITTFTMode),
+		fingerprintUnification:                     settings.EnableFingerprintUnification,
+		metadataPassthrough:                        settings.EnableMetadataPassthrough,
+		cchSigning:                                 settings.EnableCCHSigning,
+		claudeOAuthSystemPromptInjection:           settings.EnableClaudeOAuthSystemPromptInjection,
+		claudeOAuthSystemPrompt:                    settings.ClaudeOAuthSystemPrompt,
+		claudeOAuthSystemPromptBlocks:              settings.ClaudeOAuthSystemPromptBlocks,
+		anthropicCacheTTL1hInjection:               settings.EnableAnthropicCacheTTL1hInjection,
+		rewriteMessageCacheControl:                 settings.RewriteMessageCacheControl,
+		rewriteMessageCacheControlAccountWhitelist: parseAccountIDWhitelist(settings.RewriteMessageCacheControlAccountWhitelist),
+		clientDatelineNormalization:                settings.EnableClientDatelineNormalization,
+		expiresAt:                                  time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
 	})
 	s.antigravityUAVersionSF.Forget("antigravity_user_agent_version")
 	antigravityUserAgentVersion := antigravity.NormalizeUserAgentVersion(settings.AntigravityUserAgentVersion)

@@ -1,6 +1,8 @@
+# Private fork CI; keep aligned with upstream when rebasing.
 name: CI
 
 on:
+  workflow_dispatch:
   push:
   pull_request:
 

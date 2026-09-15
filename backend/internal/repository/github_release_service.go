@@ -61,6 +61,7 @@ func NewGitHubReleaseClient(proxyURL string, allowDirectOnProxyError bool) servi
 		downloadClient = &http.Client{Timeout: 10 * time.Minute}
 	}
 	downloadClient = cloneHTTPClient(downloadClient)
+	downloadClient.CheckRedirect = githubAPICheckRedirect(downloadClient.CheckRedirect)
 
 	return &githubReleaseClient{
 		httpClient:         apiClient,
@@ -97,6 +98,19 @@ func (c *githubReleaseClient) newAPIRequest(ctx context.Context, url string) (*h
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("User-Agent", "Sub2API-Updater")
+	if c.updateGitHubToken != "" && isGitHubAPIURL(req.URL) {
+		req.Header.Set("Authorization", "Bearer "+c.updateGitHubToken)
+	}
+	return req, nil
+}
+
+func (c *githubReleaseClient) newAssetRequest(ctx context.Context, rawURL string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/octet-stream")
 	req.Header.Set("User-Agent", "Sub2API-Updater")
 	if c.updateGitHubToken != "" && isGitHubAPIURL(req.URL) {
 		req.Header.Set("Authorization", "Bearer "+c.updateGitHubToken)
@@ -179,7 +193,7 @@ func (c *githubReleaseClient) FetchRecentReleases(ctx context.Context, repo stri
 }
 
 func (c *githubReleaseClient) DownloadFile(ctx context.Context, url, dest string, maxSize int64) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := c.newAssetRequest(ctx, url)
 	if err != nil {
 		return err
 	}
@@ -227,7 +241,7 @@ func (c *githubReleaseClient) DownloadFile(ctx context.Context, url, dest string
 }
 
 func (c *githubReleaseClient) FetchChecksumFile(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := c.newAssetRequest(ctx, url)
 	if err != nil {
 		return nil, err
 	}

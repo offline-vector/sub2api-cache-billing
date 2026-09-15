@@ -69,6 +69,32 @@ func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
 	require.ErrorIs(t, err, ErrNoUpdateAvailable)
 }
 
+func TestPreferredAssetDownloadURLUsesPrivateRepositoryAPIURL(t *testing.T) {
+	asset := GitHubAsset{
+		APIURL:             "https://api.github.com/repos/offline-vector/sub2api-cache-billing/releases/assets/42",
+		BrowserDownloadURL: "https://github.com/offline-vector/sub2api-cache-billing/releases/download/v0.1.180/sub2api_0.1.180_linux_amd64.tar.gz",
+	}
+	require.Equal(t, asset.APIURL, preferredAssetDownloadURL(asset))
+	require.NoError(t, validateDownloadURL(preferredAssetDownloadURL(asset)))
+
+	asset.APIURL = ""
+	require.Equal(t, asset.BrowserDownloadURL, preferredAssetDownloadURL(asset))
+}
+
+func TestUpdateServiceRejectsCachedReleaseFromAnotherRepository(t *testing.T) {
+	cache := &updateServiceCacheStub{data: `{"repo":"Wei-Shaw/sub2api","latest":"9.9.9","timestamp":4102444800}`}
+	svc := NewUpdateService(cache, &updateServiceGitHubClientStub{release: &GitHubRelease{
+		TagName: "v0.1.180",
+		Name:    "v0.1.180",
+	}}, "0.1.179", "release")
+
+	info, err := svc.CheckUpdate(context.Background(), false)
+
+	require.NoError(t, err)
+	require.Equal(t, "0.1.180", info.LatestVersion)
+	require.NotEqual(t, "9.9.9", info.LatestVersion)
+}
+
 func newRollbackTestService(current string, releases []*GitHubRelease) *UpdateService {
 	return NewUpdateService(
 		&updateServiceCacheStub{},

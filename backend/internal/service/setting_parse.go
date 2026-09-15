@@ -238,8 +238,10 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyAllowUngroupedKeyScheduling:                        "false",
 		SettingKeyOpenAILowUpstreamRatePriorityEnabled:               "false",
 		SettingKeyOpenAIOAuthSchedulingRateMultiplier:                "1",
+		SettingKeyOpenAICacheBillingRatio:                            strconv.FormatFloat(s.configuredOpenAICacheBillingRatio(), 'f', -1, 64),
 		SettingKeyEnableAnthropicCacheTTL1hInjection:                 "false",
 		SettingKeyRewriteMessageCacheControl:                         strconv.FormatBool(s.defaultRewriteMessageCacheControl()),
+		SettingKeyRewriteMessageCacheControlAccountWhitelist:         "[]",
 		SettingKeyEnableClientDatelineNormalization:                  "true",
 		SettingKeyAntigravityUserAgentVersion:                        "",
 		SettingKeyOpenAICodexUserAgent:                               "",
@@ -876,6 +878,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	} else {
 		result.RewriteMessageCacheControl = s.defaultRewriteMessageCacheControl()
 	}
+	result.RewriteMessageCacheControlAccountWhitelist = normalizeAccountIDWhitelist(settings[SettingKeyRewriteMessageCacheControlAccountWhitelist])
 	if v, ok := settings[SettingKeyEnableClientDatelineNormalization]; ok && v != "" {
 		result.EnableClientDatelineNormalization = v == "true"
 	} else {
@@ -916,6 +919,8 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.PaymentVisibleMethodWxpayEnabled = settings[SettingPaymentVisibleMethodWxpayEnabled] == "true"
 	result.OpenAILowUpstreamRatePriorityEnabled = settings[SettingKeyOpenAILowUpstreamRatePriorityEnabled] == "true"
 	result.OpenAIOAuthSchedulingRateMultiplier = parseOpenAIOAuthSchedulingRateMultiplier(settings[SettingKeyOpenAIOAuthSchedulingRateMultiplier])
+	result.OpenAICacheBillingRatio = parseStoredOpenAICacheBillingRatio(settings[SettingKeyOpenAICacheBillingRatio], s.configuredOpenAICacheBillingRatio())
+	s.storeOpenAICacheBillingRatio(result.OpenAICacheBillingRatio)
 	result.OpenAIAdvancedSchedulerEnabled = settings[openAIAdvancedSchedulerSettingKey] == "true"
 	result.OpenAIAdvancedSchedulerStickyWeightedEnabled = settings[SettingKeyOpenAIAdvancedSchedulerStickyWeightedEnabled] == "true"
 	result.OpenAIAdvancedSchedulerSubscriptionPriorityEnabled = settings[SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled] == "true"

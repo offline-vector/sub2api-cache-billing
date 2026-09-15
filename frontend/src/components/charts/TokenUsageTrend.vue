@@ -65,15 +65,20 @@ const chartColors = computed(() => ({
   output: '#10b981',
   cacheCreation: '#f59e0b',
   cacheRead: '#06b6d4',
-  cacheHitRate: '#8b5cf6'
+  cacheHitRate: '#8b5cf6',
+  upstreamCacheRead: '#0891b2',
+  upstreamCacheHitRate: '#db2777'
 }))
+
+const hasUpstreamAudit = computed(() => props.trendData.some((point) =>
+  (point.reclassified_cache_tokens ?? 0) > 0 ||
+  (point.upstream_cache_read_tokens ?? point.cache_read_tokens) !== point.cache_read_tokens
+))
 
 const chartData = computed(() => {
   if (!props.trendData?.length) return null
 
-  return {
-    labels: props.trendData.map((d) => d.date),
-    datasets: [
+  const datasets: any[] = [
       {
         label: 'Input',
         data: props.trendData.map((d) => d.input_tokens),
@@ -99,7 +104,7 @@ const chartData = computed(() => {
         tension: 0.3
       },
       {
-        label: 'Cache Read',
+        label: hasUpstreamAudit.value ? t('usage.customerCacheRead') : 'Cache Read',
         data: props.trendData.map((d) => d.cache_read_tokens),
         borderColor: chartColors.value.cacheRead,
         backgroundColor: `${chartColors.value.cacheRead}20`,
@@ -107,7 +112,7 @@ const chartData = computed(() => {
         tension: 0.3
       },
       {
-        label: 'Cache Hit Rate',
+        label: hasUpstreamAudit.value ? t('usage.customerCacheHitRate') : 'Cache Hit Rate',
         data: props.trendData.map((d) => {
           const totalPromptTokens = d.input_tokens + d.cache_read_tokens + d.cache_creation_tokens
           return totalPromptTokens > 0 ? (d.cache_read_tokens / totalPromptTokens) * 100 : 0
@@ -120,6 +125,39 @@ const chartData = computed(() => {
         yAxisID: 'yPercent'
       }
     ]
+
+  if (hasUpstreamAudit.value) {
+    datasets.push(
+      {
+        label: t('usage.upstreamCacheRead'),
+        data: props.trendData.map((d) => d.upstream_cache_read_tokens ?? d.cache_read_tokens),
+        borderColor: chartColors.value.upstreamCacheRead,
+        backgroundColor: 'transparent',
+        borderDash: [3, 3],
+        fill: false,
+        tension: 0.3
+      },
+      {
+        label: t('usage.upstreamCacheHitRate'),
+        data: props.trendData.map((d) => {
+          const upstreamInput = d.upstream_input_tokens ?? d.input_tokens
+          const upstreamCache = d.upstream_cache_read_tokens ?? d.cache_read_tokens
+          const totalPromptTokens = upstreamInput + upstreamCache + d.cache_creation_tokens
+          return totalPromptTokens > 0 ? (upstreamCache / totalPromptTokens) * 100 : 0
+        }),
+        borderColor: chartColors.value.upstreamCacheHitRate,
+        backgroundColor: 'transparent',
+        borderDash: [8, 4],
+        fill: false,
+        tension: 0.3,
+        yAxisID: 'yPercent'
+      }
+    )
+  }
+
+  return {
+    labels: props.trendData.map((d) => d.date),
+    datasets
   }
 })
 
@@ -155,7 +193,9 @@ const lineOptions = computed(() => ({
           const dataIndex = tooltipItems[0]?.dataIndex
           if (dataIndex !== undefined && props.trendData[dataIndex]) {
             const data = props.trendData[dataIndex]
-            return `Actual: $${formatCost(data.actual_cost)} | Standard: $${formatCost(data.cost)}`
+            const base = `Actual: $${formatCost(data.actual_cost)} | Standard: $${formatCost(data.cost)}`
+            if (!hasUpstreamAudit.value) return base
+            return `${base} | ${t('usage.upstreamStandardCost')}: $${formatCost(data.upstream_cost ?? data.cost)}`
           }
           return ''
         }

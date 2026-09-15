@@ -125,8 +125,14 @@
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-gray-400 dark:text-gray-500"
-                    :title="t('admin.dashboard.standard')"
+                    :title="t('admin.dashboard.customerStandard')"
                     >${{ formatCost(stats.today_cost) }}</span
+                  >
+                  <span class="text-gray-400 dark:text-gray-500"> / </span>
+                  <span
+                    class="text-cyan-600 dark:text-cyan-400"
+                    :title="t('admin.dashboard.upstreamStandard')"
+                    >${{ formatCost(stats.today_upstream_cost) }}</span
                   >
                 </p>
               </div>
@@ -161,8 +167,14 @@
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-gray-400 dark:text-gray-500"
-                    :title="t('admin.dashboard.standard')"
+                    :title="t('admin.dashboard.customerStandard')"
                     >${{ formatCost(stats.total_cost) }}</span
+                  >
+                  <span class="text-gray-400 dark:text-gray-500"> / </span>
+                  <span
+                    class="text-cyan-600 dark:text-cyan-400"
+                    :title="t('admin.dashboard.upstreamStandard')"
+                    >${{ formatCost(stats.total_upstream_cost) }}</span
                   >
                 </p>
               </div>

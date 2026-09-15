@@ -2159,6 +2159,12 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				firstTokenMs = &ms
 			}
 			s.parseSSEUsageBytesWithType(dataBytes, eventType, usage)
+			if rewrittenData, rewritten := rewriteOpenAICacheUsageForBilling(
+				dataBytes,
+				s.openAICacheBillingRatioForClient(c.Request.Context(), account),
+			); rewritten {
+				line = "data: " + string(rewrittenData)
+			}
 		}
 		if line == "" {
 			pendingSSEEventType = ""
@@ -2322,6 +2328,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	if err != nil {
 		return nil, fmt.Errorf("restore OpenAI Responses client tools: %w", err)
 	}
+	body, _ = rewriteOpenAICacheUsageForBilling(body, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
 		c.Data(resp.StatusCode, contentType, body)
 	}
@@ -2383,11 +2390,13 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		}
 		restoredBody = restoreCodexToolNamesFromContext(c, restoredBody)
 		body = restoredBody
+		body, _ = rewriteOpenAICacheUsageForBilling(body, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	} else {
 		if originalModel != "" && mappedModel != "" && originalModel != mappedModel {
 			bodyText = s.replaceModelInSSEBody(bodyText, mappedModel, originalModel)
 		}
 		body = []byte(bodyText)
+		body, _ = rewriteOpenAICacheUsageInSSEBodyForBilling(body, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	}
 
 	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)

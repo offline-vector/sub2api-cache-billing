@@ -590,8 +590,8 @@ func TestAPIContracts(t *testing.T) {
 							"account_id": 200,
 								"request_id": "req_123",
 								"model": "claude-3",
-								"request_type": "stream",
-								"native_compaction_v2": false,
+							"request_type": "stream",
+							"native_compaction_v2": false,
 								"openai_ws_mode": false,
 								"group_id": null,
 								"subscription_id": null,
@@ -912,6 +912,7 @@ func TestAPIContracts(t *testing.T) {
 					"claude_oauth_system_prompt_blocks": "",
 					"enable_anthropic_cache_ttl_1h_injection": false,
 					"rewrite_message_cache_control": false,
+					"rewrite_message_cache_control_account_whitelist": "[]",
 					"enable_client_dateline_normalization": true,
 					"antigravity_user_agent_version": "",
 					"enable_fingerprint_unification": true,
@@ -923,6 +924,7 @@ func TestAPIContracts(t *testing.T) {
 					"payment_visible_method_wxpay_enabled": false,
 					"openai_low_upstream_rate_priority_enabled": true,
 					"openai_oauth_scheduling_rate_multiplier": 0.05,
+					"openai_cache_billing_ratio": 1,
 					"openai_ttft_mode": "semantic",
 					"openai_advanced_scheduler_enabled": true,
 					"openai_advanced_scheduler_sticky_weighted_enabled": false,
@@ -1224,6 +1226,7 @@ func TestAPIContracts(t *testing.T) {
 					"claude_oauth_system_prompt_blocks": "",
 					"enable_anthropic_cache_ttl_1h_injection": false,
 					"rewrite_message_cache_control": false,
+					"rewrite_message_cache_control_account_whitelist": "[]",
 					"enable_client_dateline_normalization": true,
 					"antigravity_user_agent_version": "",
 					"min_codex_version": "",
@@ -1240,6 +1243,7 @@ func TestAPIContracts(t *testing.T) {
 					"payment_visible_method_wxpay_enabled": false,
 					"openai_low_upstream_rate_priority_enabled": false,
 					"openai_oauth_scheduling_rate_multiplier": 1,
+					"openai_cache_billing_ratio": 1,
 					"openai_ttft_mode": "semantic",
 					"openai_advanced_scheduler_enabled": false,
 					"openai_advanced_scheduler_sticky_weighted_enabled": false,
@@ -2043,6 +2047,10 @@ func (s *stubAccountRepo) UpdateExtra(ctx context.Context, id int64, updates map
 }
 
 func (s *stubAccountRepo) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) error {
+	return errors.New("not implemented")
+}
+
+func (s *stubAccountRepo) ResetQuotaUsed(ctx context.Context, id int64) error {
 	return errors.New("not implemented")
 }
 

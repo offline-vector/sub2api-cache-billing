@@ -20,6 +20,10 @@ export interface AdminUsageStatsResponse {
   total_cost: number
   total_actual_cost: number
   total_account_cost: number
+  total_upstream_input_tokens?: number
+  total_upstream_cache_read_tokens?: number
+  total_upstream_cost?: number
+  total_reclassified_cache_tokens?: number
   average_duration_ms: number
   endpoints?: EndpointStat[]
   upstream_endpoints?: EndpointStat[]

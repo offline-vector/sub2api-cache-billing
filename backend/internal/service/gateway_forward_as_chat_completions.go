@@ -33,6 +33,7 @@ func (s *GatewayService) ForwardAsChatCompletions(
 	body []byte,
 	parsed *ParsedRequest,
 ) (*ForwardResult, error) {
+	ctx = s.snapshotOpenAICacheBillingRatio(ctx, c, account)
 	startTime := time.Now()
 
 	// 1. Parse Chat Completions request

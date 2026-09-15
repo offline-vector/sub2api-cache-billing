@@ -65,7 +65,7 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 			return err
 		}
 
-		if err := replaceBody(s.rewriteMessageCacheControlIfEnabled(ctx, body)); err != nil {
+		if err := replaceBody(s.rewriteMessageCacheControlIfEnabled(ctx, account, body)); err != nil {
 			return err
 		}
 		if rw := buildToolNameRewriteFromBody(body); rw != nil {

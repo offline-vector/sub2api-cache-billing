@@ -69,11 +69,10 @@ func UserFromServiceAdmin(u *service.User) *AdminUser {
 		return nil
 	}
 	return &AdminUser{
-		User:                 *base,
-		Notes:                u.Notes,
-		LastUsedAt:           u.LastUsedAt,
-		GroupRates:           u.GroupRates,
-		RestrictPublicGroups: u.RestrictPublicGroups,
+		User:       *base,
+		Notes:      u.Notes,
+		LastUsedAt: u.LastUsedAt,
+		GroupRates: u.GroupRates,
 	}
 }
 
@@ -739,41 +738,6 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 	}
 }
 
-// UsageLogFromService converts a service UsageLog to DTO for regular users.
-// It excludes admin-only account/upstream internals while keeping user billing and request metadata.
-func UsageLogFromService(l *service.UsageLog) *UsageLog {
-	if l == nil {
-		return nil
-	}
-	u := usageLogFromServiceUser(l)
-	return &u
-}
-
-// UsageLogFromServiceAdmin converts a service UsageLog to DTO for admin users.
-// It includes minimal Account info (ID, Name only) and IP address.
-func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
-	if l == nil {
-		return nil
-	}
-	usageLog := usageLogFromServiceUser(l)
-	usageLog.UpstreamEndpoint = l.UpstreamEndpoint
-	return &AdminUsageLog{
-		UsageLog:                usageLog,
-		UpstreamModel:           l.UpstreamModel,
-		UpstreamReasoningEffort: adminUpstreamReasoningEffort(l),
-		UpstreamResponseModel:   l.UpstreamResponseModel,
-		UpstreamModelMismatch:   l.UpstreamModelMismatch,
-		ChannelID:               l.ChannelID,
-		ModelMappingChain:       l.ModelMappingChain,
-		UpstreamRequestID:       l.UpstreamRequestID,
-		BillingTier:             l.BillingTier,
-		AccountRateMultiplier:   l.AccountRateMultiplier,
-		AccountStatsCost:        l.AccountStatsCost,
-		IPAddress:               l.IPAddress,
-		Account:                 AccountSummaryFromService(l.Account),
-	}
-}
-
 func userFacingReasoningEffort(l *service.UsageLog) *string {
 	if l == nil {
 		return nil
@@ -804,6 +768,45 @@ func derefString(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+// UsageLogFromService converts a service UsageLog to DTO for regular users.
+// It excludes admin-only account/upstream internals while keeping user billing and request metadata.
+func UsageLogFromService(l *service.UsageLog) *UsageLog {
+	if l == nil {
+		return nil
+	}
+	u := usageLogFromServiceUser(l)
+	return &u
+}
+
+// UsageLogFromServiceAdmin converts a service UsageLog to DTO for admin users.
+// It includes minimal Account info (ID, Name only) and IP address.
+func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
+	if l == nil {
+		return nil
+	}
+	usageLog := usageLogFromServiceUser(l)
+	usageLog.UpstreamEndpoint = l.UpstreamEndpoint
+	return &AdminUsageLog{
+		UsageLog:                usageLog,
+		UpstreamInputTokens:     l.UpstreamInputTokens,
+		UpstreamCacheReadTokens: l.UpstreamCacheReadTokens,
+		CacheBillingRatio:       l.CacheBillingRatio,
+		UpstreamTotalCost:       l.UpstreamTotalCost,
+		UpstreamModel:           l.UpstreamModel,
+		UpstreamReasoningEffort: adminUpstreamReasoningEffort(l),
+		UpstreamResponseModel:   l.UpstreamResponseModel,
+		UpstreamModelMismatch:   l.UpstreamModelMismatch,
+		ChannelID:               l.ChannelID,
+		ModelMappingChain:       l.ModelMappingChain,
+		UpstreamRequestID:       l.UpstreamRequestID,
+		BillingTier:             l.BillingTier,
+		AccountRateMultiplier:   l.AccountRateMultiplier,
+		AccountStatsCost:        l.AccountStatsCost,
+		IPAddress:               l.IPAddress,
+		Account:                 AccountSummaryFromService(l.Account),
+	}
 }
 
 func UsageCleanupTaskFromService(task *service.UsageCleanupTask) *UsageCleanupTask {

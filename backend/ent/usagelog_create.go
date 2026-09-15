@@ -253,6 +253,48 @@ func (_c *UsageLogCreate) SetNillableCacheReadTokens(v *int) *UsageLogCreate {
 	return _c
 }
 
+// SetUpstreamInputTokens sets the "upstream_input_tokens" field.
+func (_c *UsageLogCreate) SetUpstreamInputTokens(v int) *UsageLogCreate {
+	_c.mutation.SetUpstreamInputTokens(v)
+	return _c
+}
+
+// SetNillableUpstreamInputTokens sets the "upstream_input_tokens" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableUpstreamInputTokens(v *int) *UsageLogCreate {
+	if v != nil {
+		_c.SetUpstreamInputTokens(*v)
+	}
+	return _c
+}
+
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (_c *UsageLogCreate) SetUpstreamCacheReadTokens(v int) *UsageLogCreate {
+	_c.mutation.SetUpstreamCacheReadTokens(v)
+	return _c
+}
+
+// SetNillableUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableUpstreamCacheReadTokens(v *int) *UsageLogCreate {
+	if v != nil {
+		_c.SetUpstreamCacheReadTokens(*v)
+	}
+	return _c
+}
+
+// SetCacheBillingRatio sets the "cache_billing_ratio" field.
+func (_c *UsageLogCreate) SetCacheBillingRatio(v float64) *UsageLogCreate {
+	_c.mutation.SetCacheBillingRatio(v)
+	return _c
+}
+
+// SetNillableCacheBillingRatio sets the "cache_billing_ratio" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableCacheBillingRatio(v *float64) *UsageLogCreate {
+	if v != nil {
+		_c.SetCacheBillingRatio(*v)
+	}
+	return _c
+}
+
 // SetCacheCreation5mTokens sets the "cache_creation_5m_tokens" field.
 func (_c *UsageLogCreate) SetCacheCreation5mTokens(v int) *UsageLogCreate {
 	_c.mutation.SetCacheCreation5mTokens(v)
@@ -361,6 +403,20 @@ func (_c *UsageLogCreate) SetActualCost(v float64) *UsageLogCreate {
 func (_c *UsageLogCreate) SetNillableActualCost(v *float64) *UsageLogCreate {
 	if v != nil {
 		_c.SetActualCost(*v)
+	}
+	return _c
+}
+
+// SetUpstreamTotalCost sets the "upstream_total_cost" field.
+func (_c *UsageLogCreate) SetUpstreamTotalCost(v float64) *UsageLogCreate {
+	_c.mutation.SetUpstreamTotalCost(v)
+	return _c
+}
+
+// SetNillableUpstreamTotalCost sets the "upstream_total_cost" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableUpstreamTotalCost(v *float64) *UsageLogCreate {
+	if v != nil {
+		_c.SetUpstreamTotalCost(*v)
 	}
 	return _c
 }
@@ -713,6 +769,18 @@ func (_c *UsageLogCreate) defaults() {
 		v := usagelog.DefaultCacheReadTokens
 		_c.mutation.SetCacheReadTokens(v)
 	}
+	if _, ok := _c.mutation.UpstreamInputTokens(); !ok {
+		v := usagelog.DefaultUpstreamInputTokens
+		_c.mutation.SetUpstreamInputTokens(v)
+	}
+	if _, ok := _c.mutation.UpstreamCacheReadTokens(); !ok {
+		v := usagelog.DefaultUpstreamCacheReadTokens
+		_c.mutation.SetUpstreamCacheReadTokens(v)
+	}
+	if _, ok := _c.mutation.CacheBillingRatio(); !ok {
+		v := usagelog.DefaultCacheBillingRatio
+		_c.mutation.SetCacheBillingRatio(v)
+	}
 	if _, ok := _c.mutation.CacheCreation5mTokens(); !ok {
 		v := usagelog.DefaultCacheCreation5mTokens
 		_c.mutation.SetCacheCreation5mTokens(v)
@@ -744,6 +812,10 @@ func (_c *UsageLogCreate) defaults() {
 	if _, ok := _c.mutation.ActualCost(); !ok {
 		v := usagelog.DefaultActualCost
 		_c.mutation.SetActualCost(v)
+	}
+	if _, ok := _c.mutation.UpstreamTotalCost(); !ok {
+		v := usagelog.DefaultUpstreamTotalCost
+		_c.mutation.SetUpstreamTotalCost(v)
 	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		v := usagelog.DefaultRateMultiplier
@@ -848,6 +920,15 @@ func (_c *UsageLogCreate) check() error {
 	if _, ok := _c.mutation.CacheReadTokens(); !ok {
 		return &ValidationError{Name: "cache_read_tokens", err: errors.New(`ent: missing required field "UsageLog.cache_read_tokens"`)}
 	}
+	if _, ok := _c.mutation.UpstreamInputTokens(); !ok {
+		return &ValidationError{Name: "upstream_input_tokens", err: errors.New(`ent: missing required field "UsageLog.upstream_input_tokens"`)}
+	}
+	if _, ok := _c.mutation.UpstreamCacheReadTokens(); !ok {
+		return &ValidationError{Name: "upstream_cache_read_tokens", err: errors.New(`ent: missing required field "UsageLog.upstream_cache_read_tokens"`)}
+	}
+	if _, ok := _c.mutation.CacheBillingRatio(); !ok {
+		return &ValidationError{Name: "cache_billing_ratio", err: errors.New(`ent: missing required field "UsageLog.cache_billing_ratio"`)}
+	}
 	if _, ok := _c.mutation.CacheCreation5mTokens(); !ok {
 		return &ValidationError{Name: "cache_creation_5m_tokens", err: errors.New(`ent: missing required field "UsageLog.cache_creation_5m_tokens"`)}
 	}
@@ -871,6 +952,9 @@ func (_c *UsageLogCreate) check() error {
 	}
 	if _, ok := _c.mutation.ActualCost(); !ok {
 		return &ValidationError{Name: "actual_cost", err: errors.New(`ent: missing required field "UsageLog.actual_cost"`)}
+	}
+	if _, ok := _c.mutation.UpstreamTotalCost(); !ok {
+		return &ValidationError{Name: "upstream_total_cost", err: errors.New(`ent: missing required field "UsageLog.upstream_total_cost"`)}
 	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		return &ValidationError{Name: "rate_multiplier", err: errors.New(`ent: missing required field "UsageLog.rate_multiplier"`)}
@@ -1023,6 +1107,18 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 		_spec.SetField(usagelog.FieldCacheReadTokens, field.TypeInt, value)
 		_node.CacheReadTokens = value
 	}
+	if value, ok := _c.mutation.UpstreamInputTokens(); ok {
+		_spec.SetField(usagelog.FieldUpstreamInputTokens, field.TypeInt, value)
+		_node.UpstreamInputTokens = value
+	}
+	if value, ok := _c.mutation.UpstreamCacheReadTokens(); ok {
+		_spec.SetField(usagelog.FieldUpstreamCacheReadTokens, field.TypeInt, value)
+		_node.UpstreamCacheReadTokens = value
+	}
+	if value, ok := _c.mutation.CacheBillingRatio(); ok {
+		_spec.SetField(usagelog.FieldCacheBillingRatio, field.TypeFloat64, value)
+		_node.CacheBillingRatio = value
+	}
 	if value, ok := _c.mutation.CacheCreation5mTokens(); ok {
 		_spec.SetField(usagelog.FieldCacheCreation5mTokens, field.TypeInt, value)
 		_node.CacheCreation5mTokens = value
@@ -1054,6 +1150,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ActualCost(); ok {
 		_spec.SetField(usagelog.FieldActualCost, field.TypeFloat64, value)
 		_node.ActualCost = value
+	}
+	if value, ok := _c.mutation.UpstreamTotalCost(); ok {
+		_spec.SetField(usagelog.FieldUpstreamTotalCost, field.TypeFloat64, value)
+		_node.UpstreamTotalCost = value
 	}
 	if value, ok := _c.mutation.RateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)
@@ -1590,6 +1690,60 @@ func (u *UsageLogUpsert) AddCacheReadTokens(v int) *UsageLogUpsert {
 	return u
 }
 
+// SetUpstreamInputTokens sets the "upstream_input_tokens" field.
+func (u *UsageLogUpsert) SetUpstreamInputTokens(v int) *UsageLogUpsert {
+	u.Set(usagelog.FieldUpstreamInputTokens, v)
+	return u
+}
+
+// UpdateUpstreamInputTokens sets the "upstream_input_tokens" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateUpstreamInputTokens() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldUpstreamInputTokens)
+	return u
+}
+
+// AddUpstreamInputTokens adds v to the "upstream_input_tokens" field.
+func (u *UsageLogUpsert) AddUpstreamInputTokens(v int) *UsageLogUpsert {
+	u.Add(usagelog.FieldUpstreamInputTokens, v)
+	return u
+}
+
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsert) SetUpstreamCacheReadTokens(v int) *UsageLogUpsert {
+	u.Set(usagelog.FieldUpstreamCacheReadTokens, v)
+	return u
+}
+
+// UpdateUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateUpstreamCacheReadTokens() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldUpstreamCacheReadTokens)
+	return u
+}
+
+// AddUpstreamCacheReadTokens adds v to the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsert) AddUpstreamCacheReadTokens(v int) *UsageLogUpsert {
+	u.Add(usagelog.FieldUpstreamCacheReadTokens, v)
+	return u
+}
+
+// SetCacheBillingRatio sets the "cache_billing_ratio" field.
+func (u *UsageLogUpsert) SetCacheBillingRatio(v float64) *UsageLogUpsert {
+	u.Set(usagelog.FieldCacheBillingRatio, v)
+	return u
+}
+
+// UpdateCacheBillingRatio sets the "cache_billing_ratio" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateCacheBillingRatio() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldCacheBillingRatio)
+	return u
+}
+
+// AddCacheBillingRatio adds v to the "cache_billing_ratio" field.
+func (u *UsageLogUpsert) AddCacheBillingRatio(v float64) *UsageLogUpsert {
+	u.Add(usagelog.FieldCacheBillingRatio, v)
+	return u
+}
+
 // SetCacheCreation5mTokens sets the "cache_creation_5m_tokens" field.
 func (u *UsageLogUpsert) SetCacheCreation5mTokens(v int) *UsageLogUpsert {
 	u.Set(usagelog.FieldCacheCreation5mTokens, v)
@@ -1731,6 +1885,24 @@ func (u *UsageLogUpsert) UpdateActualCost() *UsageLogUpsert {
 // AddActualCost adds v to the "actual_cost" field.
 func (u *UsageLogUpsert) AddActualCost(v float64) *UsageLogUpsert {
 	u.Add(usagelog.FieldActualCost, v)
+	return u
+}
+
+// SetUpstreamTotalCost sets the "upstream_total_cost" field.
+func (u *UsageLogUpsert) SetUpstreamTotalCost(v float64) *UsageLogUpsert {
+	u.Set(usagelog.FieldUpstreamTotalCost, v)
+	return u
+}
+
+// UpdateUpstreamTotalCost sets the "upstream_total_cost" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateUpstreamTotalCost() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldUpstreamTotalCost)
+	return u
+}
+
+// AddUpstreamTotalCost adds v to the "upstream_total_cost" field.
+func (u *UsageLogUpsert) AddUpstreamTotalCost(v float64) *UsageLogUpsert {
+	u.Add(usagelog.FieldUpstreamTotalCost, v)
 	return u
 }
 
@@ -2498,6 +2670,69 @@ func (u *UsageLogUpsertOne) UpdateCacheReadTokens() *UsageLogUpsertOne {
 	})
 }
 
+// SetUpstreamInputTokens sets the "upstream_input_tokens" field.
+func (u *UsageLogUpsertOne) SetUpstreamInputTokens(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamInputTokens(v)
+	})
+}
+
+// AddUpstreamInputTokens adds v to the "upstream_input_tokens" field.
+func (u *UsageLogUpsertOne) AddUpstreamInputTokens(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddUpstreamInputTokens(v)
+	})
+}
+
+// UpdateUpstreamInputTokens sets the "upstream_input_tokens" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateUpstreamInputTokens() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamInputTokens()
+	})
+}
+
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsertOne) SetUpstreamCacheReadTokens(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamCacheReadTokens(v)
+	})
+}
+
+// AddUpstreamCacheReadTokens adds v to the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsertOne) AddUpstreamCacheReadTokens(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddUpstreamCacheReadTokens(v)
+	})
+}
+
+// UpdateUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateUpstreamCacheReadTokens() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamCacheReadTokens()
+	})
+}
+
+// SetCacheBillingRatio sets the "cache_billing_ratio" field.
+func (u *UsageLogUpsertOne) SetCacheBillingRatio(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetCacheBillingRatio(v)
+	})
+}
+
+// AddCacheBillingRatio adds v to the "cache_billing_ratio" field.
+func (u *UsageLogUpsertOne) AddCacheBillingRatio(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddCacheBillingRatio(v)
+	})
+}
+
+// UpdateCacheBillingRatio sets the "cache_billing_ratio" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateCacheBillingRatio() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateCacheBillingRatio()
+	})
+}
+
 // SetCacheCreation5mTokens sets the "cache_creation_5m_tokens" field.
 func (u *UsageLogUpsertOne) SetCacheCreation5mTokens(v int) *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
@@ -2663,6 +2898,27 @@ func (u *UsageLogUpsertOne) AddActualCost(v float64) *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) UpdateActualCost() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateActualCost()
+	})
+}
+
+// SetUpstreamTotalCost sets the "upstream_total_cost" field.
+func (u *UsageLogUpsertOne) SetUpstreamTotalCost(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamTotalCost(v)
+	})
+}
+
+// AddUpstreamTotalCost adds v to the "upstream_total_cost" field.
+func (u *UsageLogUpsertOne) AddUpstreamTotalCost(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddUpstreamTotalCost(v)
+	})
+}
+
+// UpdateUpstreamTotalCost sets the "upstream_total_cost" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateUpstreamTotalCost() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamTotalCost()
 	})
 }
 
@@ -3654,6 +3910,69 @@ func (u *UsageLogUpsertBulk) UpdateCacheReadTokens() *UsageLogUpsertBulk {
 	})
 }
 
+// SetUpstreamInputTokens sets the "upstream_input_tokens" field.
+func (u *UsageLogUpsertBulk) SetUpstreamInputTokens(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamInputTokens(v)
+	})
+}
+
+// AddUpstreamInputTokens adds v to the "upstream_input_tokens" field.
+func (u *UsageLogUpsertBulk) AddUpstreamInputTokens(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddUpstreamInputTokens(v)
+	})
+}
+
+// UpdateUpstreamInputTokens sets the "upstream_input_tokens" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateUpstreamInputTokens() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamInputTokens()
+	})
+}
+
+// SetUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsertBulk) SetUpstreamCacheReadTokens(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamCacheReadTokens(v)
+	})
+}
+
+// AddUpstreamCacheReadTokens adds v to the "upstream_cache_read_tokens" field.
+func (u *UsageLogUpsertBulk) AddUpstreamCacheReadTokens(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddUpstreamCacheReadTokens(v)
+	})
+}
+
+// UpdateUpstreamCacheReadTokens sets the "upstream_cache_read_tokens" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateUpstreamCacheReadTokens() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamCacheReadTokens()
+	})
+}
+
+// SetCacheBillingRatio sets the "cache_billing_ratio" field.
+func (u *UsageLogUpsertBulk) SetCacheBillingRatio(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetCacheBillingRatio(v)
+	})
+}
+
+// AddCacheBillingRatio adds v to the "cache_billing_ratio" field.
+func (u *UsageLogUpsertBulk) AddCacheBillingRatio(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddCacheBillingRatio(v)
+	})
+}
+
+// UpdateCacheBillingRatio sets the "cache_billing_ratio" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateCacheBillingRatio() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateCacheBillingRatio()
+	})
+}
+
 // SetCacheCreation5mTokens sets the "cache_creation_5m_tokens" field.
 func (u *UsageLogUpsertBulk) SetCacheCreation5mTokens(v int) *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
@@ -3819,6 +4138,27 @@ func (u *UsageLogUpsertBulk) AddActualCost(v float64) *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) UpdateActualCost() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateActualCost()
+	})
+}
+
+// SetUpstreamTotalCost sets the "upstream_total_cost" field.
+func (u *UsageLogUpsertBulk) SetUpstreamTotalCost(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamTotalCost(v)
+	})
+}
+
+// AddUpstreamTotalCost adds v to the "upstream_total_cost" field.
+func (u *UsageLogUpsertBulk) AddUpstreamTotalCost(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddUpstreamTotalCost(v)
+	})
+}
+
+// UpdateUpstreamTotalCost sets the "upstream_total_cost" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateUpstreamTotalCost() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamTotalCost()
 	})
 }
 

@@ -18,6 +18,11 @@ English | [中文](README_CN.md) | [日本語](README_JA.md)
 
 </div>
 
+> **Private fork notice:** this branch contains an operator-configurable OpenAI
+> cache billing policy. Read [FORK_NOTES.md](FORK_NOTES.md) and
+> [SECURITY_REVIEW.md](SECURITY_REVIEW.md) before deployment. The default ratio
+> is `1.0`, which preserves upstream billing behavior.
+
 ## ⚠️ Important Notice
 
 Please read the following carefully before using this project:

@@ -88,20 +88,23 @@ func addMessageCacheBreakpoints(body []byte) []byte {
 }
 
 // rewriteMessageCacheControlIfEnabled 按系统设置决定是否执行旧版 messages 缓存断点改写。
-func (s *GatewayService) rewriteMessageCacheControlIfEnabled(ctx context.Context, body []byte) []byte {
-	if s == nil || !s.isRewriteMessageCacheControlEnabled(ctx) {
+func (s *GatewayService) rewriteMessageCacheControlIfEnabled(ctx context.Context, account *Account, body []byte) []byte {
+	if s == nil || !s.isRewriteMessageCacheControlEnabled(ctx, account) {
 		return body
 	}
 	body = stripMessageCacheControl(body)
 	return addMessageCacheBreakpoints(body)
 }
 
-func (s *GatewayService) isRewriteMessageCacheControlEnabled(ctx context.Context) bool {
+func (s *GatewayService) isRewriteMessageCacheControlEnabled(ctx context.Context, account *Account) bool {
 	if s == nil {
 		return false
 	}
 	if s.settingService != nil {
-		return s.settingService.IsRewriteMessageCacheControlEnabled(ctx)
+		if account == nil {
+			return s.settingService.IsRewriteMessageCacheControlEnabled(ctx)
+		}
+		return s.settingService.IsRewriteMessageCacheControlEnabledForAccount(ctx, account.ID)
 	}
 	return false
 }

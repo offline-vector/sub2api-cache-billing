@@ -653,6 +653,17 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 				line = "data: " + data
 				eventType = effectiveOpenAISSEEventType(dataBytes, eventType)
 			}
+			// Parse the provider-reported usage before rewriting the client copy.
+			s.parseSSEUsageBytesWithType(dataBytes, eventType, usage)
+			if rewrittenData, rewritten := rewriteOpenAICacheUsageForBilling(
+				dataBytes,
+				s.openAICacheBillingRatioForClient(c.Request.Context(), account),
+			); rewritten {
+				dataBytes = rewrittenData
+				data = string(rewrittenData)
+				line = "data: " + data
+				eventType = strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String())
+			}
 			if sanitizedData, sanitized := sanitizeOpenAIResponseFailedEventForClient(
 				dataBytes,
 				eventType,
@@ -716,7 +727,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 				firstTokenMs = &ms
 				stopFirstOutputTimer()
 			}
-			s.parseSSEUsageBytesWithType(dataBytes, eventType, usage)
 			return
 		}
 
@@ -1638,6 +1648,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 		return nil, fmt.Errorf("restore OpenAI namespace response: %w", err)
 	}
 	body = restoreCodexToolNamesFromContext(c, body)
+	body, _ = rewriteOpenAICacheUsageForBilling(body, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	// Codex 协议要求 /responses/compact JSON 响应携带 x-codex-turn-state
 	// （codex-api/src/endpoint/compact.rs 从响应头捕获），显式回传。
@@ -1739,11 +1750,13 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 		}
 		restoredBody = restoreCodexToolNamesFromContext(c, restoredBody)
 		body = restoredBody
+		body, _ = rewriteOpenAICacheUsageForBilling(body, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	} else {
 		if originalModel != mappedModel {
 			bodyText = s.replaceModelInSSEBody(bodyText, mappedModel, originalModel)
 		}
 		body = []byte(bodyText)
+		body, _ = rewriteOpenAICacheUsageInSSEBodyForBilling(body, s.openAICacheBillingRatioForClient(c.Request.Context(), account))
 	}
 
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)

@@ -343,6 +343,64 @@ func TestOpenAIGatewayServiceRecordUsage_ZeroUsageStillWritesUsageLog(t *testing
 	require.Zero(t, billingRepo.lastCmd.AccountQuotaCost)
 }
 
+func TestOpenAIGatewayServiceRecordUsage_FastTierUsesAdjustedCacheAndPreservesUpstreamAudit(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(
+		usageRepo,
+		billingRepo,
+		&openAIRecordUsageUserRepoStub{},
+		&openAIRecordUsageSubRepoStub{},
+		nil,
+	)
+	svc.cfg.Gateway.OpenAICacheBillingRatio = 0.6
+	tier := "priority"
+	result := &OpenAIForwardResult{
+		RequestID:   "resp_fast_cache_ratio",
+		Model:       "gpt-5.5",
+		ServiceTier: &tier,
+		Usage: OpenAIUsage{
+			InputTokens:          100,
+			OutputTokens:         10,
+			CacheReadInputTokens: 80,
+		},
+		Duration: time.Second,
+	}
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result:  result,
+		APIKey:  &APIKey{ID: 501},
+		User:    &User{ID: 601},
+		Account: &Account{ID: 701, Platform: PlatformOpenAI},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 52, usageRepo.lastLog.InputTokens)
+	require.Equal(t, 48, usageRepo.lastLog.CacheReadTokens)
+	require.Equal(t, 100, usageRepo.lastLog.UpstreamInputTokens)
+	require.Equal(t, 80, usageRepo.lastLog.UpstreamCacheReadTokens)
+	require.Equal(t, 0.6, usageRepo.lastLog.CacheBillingRatio)
+	require.NotNil(t, usageRepo.lastLog.ServiceTier)
+	require.Equal(t, "priority", *usageRepo.lastLog.ServiceTier)
+
+	billableCost, err := svc.billingService.CalculateCostWithServiceTier("gpt-5.5", UsageTokens{
+		InputTokens:     52,
+		OutputTokens:    10,
+		CacheReadTokens: 48,
+	}, 1.1, "priority")
+	require.NoError(t, err)
+	upstreamCost, err := svc.billingService.CalculateCostWithServiceTier("gpt-5.5", UsageTokens{
+		InputTokens:     20,
+		OutputTokens:    10,
+		CacheReadTokens: 80,
+	}, 1.1, "priority")
+	require.NoError(t, err)
+	require.InDelta(t, billableCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, upstreamCost.TotalCost, usageRepo.lastLog.UpstreamTotalCost, 1e-12)
+	require.Greater(t, usageRepo.lastLog.TotalCost, usageRepo.lastLog.UpstreamTotalCost)
+	require.Equal(t, OpenAIUsage{InputTokens: 100, OutputTokens: 10, CacheReadInputTokens: 80}, result.Usage)
+}
+
 func TestOpenAIGatewayServiceRecordUsage_MissingPricingRecordsZeroCostUsageLog(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}

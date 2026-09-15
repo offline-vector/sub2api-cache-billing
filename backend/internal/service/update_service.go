@@ -30,11 +30,12 @@ var (
 const (
 	updateCacheKey = "update_check_cache"
 	updateCacheTTL = 1200 // 20 minutes
-	githubRepo     = "Wei-Shaw/sub2api"
+	githubRepo     = "offline-vector/sub2api-cache-billing"
 
 	// Security: allowed download domains for updates
 	allowedDownloadHost = "github.com"
 	allowedAssetHost    = "objects.githubusercontent.com"
+	allowedAPIHost      = "api.github.com"
 
 	// Security: max download size (500MB)
 	maxDownloadSize = 500 * 1024 * 1024
@@ -124,6 +125,7 @@ type RollbackVersion struct {
 }
 
 type GitHubAsset struct {
+	APIURL             string `json:"url"`
 	Name               string `json:"name"`
 	BrowserDownloadURL string `json:"browser_download_url"`
 	Size               int64  `json:"size"`
@@ -182,11 +184,13 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 	// Find matching archive and checksum for current platform
 	archiveName := s.getArchiveName()
 	var downloadURL string
+	var downloadFileName string
 	var checksumURL string
 
 	for _, asset := range releaseAssets {
 		if strings.Contains(asset.Name, archiveName) && !strings.HasSuffix(asset.Name, ".txt") {
 			downloadURL = asset.DownloadURL
+			downloadFileName = filepath.Base(asset.Name)
 		}
 		if asset.Name == "checksums.txt" {
 			checksumURL = asset.DownloadURL
@@ -228,7 +232,10 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Download archive
-	archivePath := filepath.Join(tempDir, filepath.Base(downloadURL))
+	if downloadFileName == "" || downloadFileName == "." {
+		return fmt.Errorf("release archive has an invalid file name")
+	}
+	archivePath := filepath.Join(tempDir, downloadFileName)
 	if err := s.downloadFile(ctx, downloadURL, archivePath); err != nil {
 		return fmt.Errorf("download failed: %w", err)
 	}
@@ -352,7 +359,7 @@ func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) e
 	for i, a := range match.Assets {
 		assets[i] = Asset{
 			Name:        a.Name,
-			DownloadURL: a.BrowserDownloadURL,
+			DownloadURL: preferredAssetDownloadURL(a),
 			Size:        a.Size,
 		}
 	}
@@ -411,7 +418,7 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 	for i, a := range release.Assets {
 		assets[i] = Asset{
 			Name:        a.Name,
-			DownloadURL: a.BrowserDownloadURL,
+			DownloadURL: preferredAssetDownloadURL(a),
 			Size:        a.Size,
 		}
 	}
@@ -430,6 +437,15 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 		Cached:    false,
 		BuildType: s.buildType,
 	}, nil
+}
+
+func preferredAssetDownloadURL(asset GitHubAsset) string {
+	// API asset URLs support private repositories through UPDATE_GITHUB_TOKEN.
+	// Browser URLs remain a compatibility fallback for older release payloads.
+	if strings.TrimSpace(asset.APIURL) != "" {
+		return asset.APIURL
+	}
+	return asset.BrowserDownloadURL
 }
 
 func (s *UpdateService) downloadFile(ctx context.Context, downloadURL, dest string) error {
@@ -457,11 +473,13 @@ func validateDownloadURL(rawURL string) error {
 
 	// Check against allowed hosts
 	host := parsedURL.Host
-	// GitHub release URLs can be from github.com or objects.githubusercontent.com
+	// GitHub release URLs can be browser URLs, asset CDN URLs, or authenticated
+	// API asset endpoints used by private fork releases.
 	if host != allowedDownloadHost &&
 		!strings.HasSuffix(host, "."+allowedDownloadHost) &&
 		host != allowedAssetHost &&
-		!strings.HasSuffix(host, "."+allowedAssetHost) {
+		!strings.HasSuffix(host, "."+allowedAssetHost) &&
+		host != allowedAPIHost {
 		return fmt.Errorf("download from untrusted host: %s", host)
 	}
 
@@ -600,12 +618,16 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 	}
 
 	var cached struct {
+		Repo        string       `json:"repo"`
 		Latest      string       `json:"latest"`
 		ReleaseInfo *ReleaseInfo `json:"release_info"`
 		Timestamp   int64        `json:"timestamp"`
 	}
 	if err := json.Unmarshal([]byte(data), &cached); err != nil {
 		return nil, err
+	}
+	if cached.Repo != githubRepo {
+		return nil, fmt.Errorf("update cache belongs to a different repository")
 	}
 
 	if time.Now().Unix()-cached.Timestamp > updateCacheTTL {
@@ -624,10 +646,12 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 
 func (s *UpdateService) saveToCache(ctx context.Context, info *UpdateInfo) {
 	cacheData := struct {
+		Repo        string       `json:"repo"`
 		Latest      string       `json:"latest"`
 		ReleaseInfo *ReleaseInfo `json:"release_info"`
 		Timestamp   int64        `json:"timestamp"`
 	}{
+		Repo:        githubRepo,
 		Latest:      info.LatestVersion,
 		ReleaseInfo: info.ReleaseInfo,
 		Timestamp:   time.Now().Unix(),

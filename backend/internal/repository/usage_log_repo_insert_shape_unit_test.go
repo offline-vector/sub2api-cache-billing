@@ -129,7 +129,9 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 	})
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 
-	idx := len(prepared.args) - 4
+	idx := strings.Index(usageLogSelectColumns, "upstream_request_id")
+	require.GreaterOrEqual(t, idx, 0)
+	idx = len(strings.Split(usageLogSelectColumns[:idx], ",")) - 2 // SELECT also includes id.
 	arg, ok := prepared.args[idx].(sql.NullString)
 	require.True(t, ok, "upstream_request_id arg should be sql.NullString, got %T", prepared.args[idx])
 	require.True(t, arg.Valid)
