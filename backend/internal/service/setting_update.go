@@ -720,18 +720,18 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 	})
 	gatewayForwardingSF.Forget("gateway_forwarding")
 	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
-		openAITTFTMode:                             normalizeOpenAITTFTMode(settings.OpenAITTFTMode),
-		fingerprintUnification:                     settings.EnableFingerprintUnification,
-		metadataPassthrough:                        settings.EnableMetadataPassthrough,
-		cchSigning:                                 settings.EnableCCHSigning,
-		claudeOAuthSystemPromptInjection:           settings.EnableClaudeOAuthSystemPromptInjection,
-		claudeOAuthSystemPrompt:                    settings.ClaudeOAuthSystemPrompt,
-		claudeOAuthSystemPromptBlocks:              settings.ClaudeOAuthSystemPromptBlocks,
-		anthropicCacheTTL1hInjection:               settings.EnableAnthropicCacheTTL1hInjection,
-		rewriteMessageCacheControl:                 settings.RewriteMessageCacheControl,
-		rewriteMessageCacheControlAccountWhitelist: parseAccountIDWhitelist(settings.RewriteMessageCacheControlAccountWhitelist),
-		clientDatelineNormalization:                settings.EnableClientDatelineNormalization,
-		expiresAt:                                  time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
+		openAITTFTMode:                          normalizeOpenAITTFTMode(settings.OpenAITTFTMode),
+		fingerprintUnification:                  settings.EnableFingerprintUnification,
+		metadataPassthrough:                     settings.EnableMetadataPassthrough,
+		cchSigning:                              settings.EnableCCHSigning,
+		claudeOAuthSystemPromptInjection:        settings.EnableClaudeOAuthSystemPromptInjection,
+		claudeOAuthSystemPrompt:                 settings.ClaudeOAuthSystemPrompt,
+		claudeOAuthSystemPromptBlocks:           settings.ClaudeOAuthSystemPromptBlocks,
+		anthropicCacheTTL1hInjection:            settings.EnableAnthropicCacheTTL1hInjection,
+		rewriteMessageCacheControl:              settings.RewriteMessageCacheControl,
+		rewriteMessageCacheControlUserWhitelist: parseAccountIDWhitelist(settings.RewriteMessageCacheControlAccountWhitelist),
+		clientDatelineNormalization:             settings.EnableClientDatelineNormalization,
+		expiresAt:                               time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
 	})
 	s.antigravityUAVersionSF.Forget("antigravity_user_agent_version")
 	antigravityUserAgentVersion := antigravity.NormalizeUserAgentVersion(settings.AntigravityUserAgentVersion)

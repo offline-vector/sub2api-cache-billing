@@ -100,11 +100,11 @@ func (s *GatewayService) isRewriteMessageCacheControlEnabled(ctx context.Context
 	if s == nil {
 		return false
 	}
+	if exempt, ok := cacheModificationWhitelistSnapshot(ctx); ok && exempt {
+		return false
+	}
 	if s.settingService != nil {
-		if account == nil {
-			return s.settingService.IsRewriteMessageCacheControlEnabled(ctx)
-		}
-		return s.settingService.IsRewriteMessageCacheControlEnabledForAccount(ctx, account.ID)
+		return s.settingService.IsRewriteMessageCacheControlEnabled(ctx)
 	}
 	return false
 }

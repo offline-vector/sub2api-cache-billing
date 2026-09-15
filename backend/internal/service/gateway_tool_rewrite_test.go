@@ -253,8 +253,8 @@ func TestRewriteMessageCacheControlIfEnabled_OptInPreservesLegacyRewrite(t *test
 	require.Equal(t, "5m", gjson.GetBytes(out, "messages.3.content.0.cache_control.ttl").String())
 }
 
-func TestRewriteMessageCacheControlIfEnabled_AccountWhitelistSkipsRewrite(t *testing.T) {
-	// The whitelist is evaluated against the selected upstream account ID.
+func TestRewriteMessageCacheControlIfEnabled_UserWhitelistSkipsRewrite(t *testing.T) {
+	// The exemption is evaluated against the authenticated user ID.
 	body := []byte(`{"messages":[{"role":"user","content":[{"type":"text","text":"stable","cache_control":{"type":"ephemeral","ttl":"1h"}}]}]}`)
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
 		SettingKeyRewriteMessageCacheControl:                 "true",
@@ -263,7 +263,8 @@ func TestRewriteMessageCacheControlIfEnabled_AccountWhitelistSkipsRewrite(t *tes
 	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
 	svc := &GatewayService{settingService: NewSettingService(repo, &config.Config{})}
 
-	whitelisted := svc.rewriteMessageCacheControlIfEnabled(context.Background(), &Account{ID: 42}, body)
+	whitelistedCtx := withCacheModificationWhitelistSnapshot(context.Background(), nil, true)
+	whitelisted := svc.rewriteMessageCacheControlIfEnabled(whitelistedCtx, &Account{ID: 99}, body)
 	require.JSONEq(t, string(body), string(whitelisted))
 
 	other := svc.rewriteMessageCacheControlIfEnabled(context.Background(), &Account{ID: 99}, body)

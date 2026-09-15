@@ -691,6 +691,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	if account == nil {
 		return errors.New("account is nil")
 	}
+	ctx = s.snapshotOpenAICacheBillingRatio(ctx, c, account)
 	if err := validateOpenAIWSBearerToken(account, token); err != nil {
 		return err
 	}

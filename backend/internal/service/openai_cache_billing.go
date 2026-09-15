@@ -15,6 +15,67 @@ const defaultOpenAICacheBillingRatio = 1.0
 
 type openAICacheBillingRatioSnapshotKey struct{}
 
+// cacheModificationWhitelistSnapshotKey freezes the user exemption decision
+// for one request. The setting is evaluated from the authenticated API key's
+// owner, never from the selected upstream account.
+type cacheModificationWhitelistSnapshotKey struct{}
+
+func requestUserIDFromGinContext(c *gin.Context) int64 {
+	if c == nil {
+		return 0
+	}
+	value, ok := c.Get("api_key")
+	if !ok {
+		return 0
+	}
+	apiKey, ok := value.(*APIKey)
+	if !ok || apiKey == nil {
+		return 0
+	}
+	return apiKey.UserID
+}
+
+func cacheModificationWhitelistSnapshot(ctx context.Context) (bool, bool) {
+	if ctx == nil {
+		return false, false
+	}
+	exempt, ok := ctx.Value(cacheModificationWhitelistSnapshotKey{}).(bool)
+	return exempt, ok
+}
+
+func withCacheModificationWhitelistSnapshot(ctx context.Context, c *gin.Context, exempt bool) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, ok := cacheModificationWhitelistSnapshot(ctx); !ok {
+		if c != nil && c.Request != nil {
+			if requestExempt, requestOK := cacheModificationWhitelistSnapshot(c.Request.Context()); requestOK {
+				ctx = context.WithValue(ctx, cacheModificationWhitelistSnapshotKey{}, requestExempt)
+			} else {
+				ctx = context.WithValue(ctx, cacheModificationWhitelistSnapshotKey{}, exempt)
+			}
+		} else {
+			ctx = context.WithValue(ctx, cacheModificationWhitelistSnapshotKey{}, exempt)
+		}
+	}
+	if c != nil && c.Request != nil {
+		c.Request = c.Request.WithContext(ctx)
+	}
+	return ctx
+}
+
+func snapshotCacheModificationWhitelist(ctx context.Context, c *gin.Context, settingService *SettingService) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, ok := cacheModificationWhitelistSnapshot(ctx); ok {
+		return withCacheModificationWhitelistSnapshot(ctx, c, false)
+	}
+	userID := requestUserIDFromGinContext(c)
+	exempt := settingService != nil && settingService.IsCacheModificationUserWhitelisted(ctx, userID)
+	return withCacheModificationWhitelistSnapshot(ctx, c, exempt)
+}
+
 // withOpenAICacheBillingRatioSnapshot freezes the operator setting for one
 // request. Updating c.Request makes the same value available to the handler's
 // detached usage-record task after the upstream response has completed.
@@ -40,11 +101,12 @@ func withOpenAICacheBillingRatioSnapshot(ctx context.Context, c *gin.Context, ra
 }
 
 func (s *GatewayService) snapshotOpenAICacheBillingRatio(ctx context.Context, c *gin.Context, account *Account) context.Context {
+	ctx = snapshotCacheModificationWhitelist(ctx, c, s.settingService)
 	if !gatewayOpenAICacheBillingEligible(account) {
 		return ctx
 	}
 	ratio := s.currentOpenAICacheBillingRatio(ctx)
-	if s != nil && s.settingService != nil && s.settingService.IsCacheModificationAccountWhitelisted(ctx, account.ID) {
+	if exempt, _ := cacheModificationWhitelistSnapshot(ctx); exempt {
 		ratio = defaultOpenAICacheBillingRatio
 	}
 	return withOpenAICacheBillingRatioSnapshot(ctx, c, ratio)
@@ -160,7 +222,7 @@ func (s *GatewayService) openAICacheBillingRatioForClient(ctx context.Context, a
 	if ratio, ok := openAICacheBillingRatioSnapshot(ctx); ok {
 		return ratio
 	}
-	if s.settingService != nil && s.settingService.IsCacheModificationAccountWhitelisted(ctx, account.ID) {
+	if exempt, _ := cacheModificationWhitelistSnapshot(ctx); exempt {
 		return defaultOpenAICacheBillingRatio
 	}
 	return s.currentOpenAICacheBillingRatio(ctx)
@@ -245,11 +307,12 @@ func (s *OpenAIGatewayService) openAICacheBillingRatioFor(ctx context.Context, r
 }
 
 func (s *OpenAIGatewayService) snapshotOpenAICacheBillingRatio(ctx context.Context, c *gin.Context, account *Account) context.Context {
+	ctx = snapshotCacheModificationWhitelist(ctx, c, s.settingService)
 	if account == nil || account.Platform != PlatformOpenAI {
 		return ctx
 	}
 	ratio := s.currentOpenAICacheBillingRatio(ctx)
-	if s != nil && s.settingService != nil && s.settingService.IsCacheModificationAccountWhitelisted(ctx, account.ID) {
+	if exempt, _ := cacheModificationWhitelistSnapshot(ctx); exempt {
 		ratio = defaultOpenAICacheBillingRatio
 	}
 	return withOpenAICacheBillingRatioSnapshot(ctx, c, ratio)
@@ -262,7 +325,7 @@ func (s *OpenAIGatewayService) openAICacheBillingRatioForClient(ctx context.Cont
 	if ratio, ok := openAICacheBillingRatioSnapshot(ctx); ok {
 		return ratio
 	}
-	if s.settingService != nil && s.settingService.IsCacheModificationAccountWhitelisted(ctx, account.ID) {
+	if exempt, _ := cacheModificationWhitelistSnapshot(ctx); exempt {
 		return defaultOpenAICacheBillingRatio
 	}
 	return s.currentOpenAICacheBillingRatio(ctx)

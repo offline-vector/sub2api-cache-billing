@@ -53,18 +53,18 @@ const backendModeDBTimeout = 5 * time.Second
 
 // cachedGatewayForwardingSettings 缓存网关转发行为设置（进程内缓存，60s TTL）
 type cachedGatewayForwardingSettings struct {
-	openAITTFTMode                             string
-	fingerprintUnification                     bool
-	metadataPassthrough                        bool
-	cchSigning                                 bool
-	claudeOAuthSystemPromptInjection           bool
-	claudeOAuthSystemPrompt                    string
-	claudeOAuthSystemPromptBlocks              string
-	anthropicCacheTTL1hInjection               bool
-	rewriteMessageCacheControl                 bool
-	rewriteMessageCacheControlAccountWhitelist map[int64]struct{}
-	clientDatelineNormalization                bool
-	expiresAt                                  int64 // unix nano
+	openAITTFTMode                          string
+	fingerprintUnification                  bool
+	metadataPassthrough                     bool
+	cchSigning                              bool
+	claudeOAuthSystemPromptInjection        bool
+	claudeOAuthSystemPrompt                 string
+	claudeOAuthSystemPromptBlocks           string
+	anthropicCacheTTL1hInjection            bool
+	rewriteMessageCacheControl              bool
+	rewriteMessageCacheControlUserWhitelist map[int64]struct{}
+	clientDatelineNormalization             bool
+	expiresAt                               int64 // unix nano
 }
 
 var gatewayForwardingCache atomic.Value // *cachedGatewayForwardingSettings
@@ -740,7 +740,7 @@ func (s *SettingService) IsBackendModeEnabled(ctx context.Context) bool {
 type gatewayForwardingSettingsResult struct {
 	openAITTFTMode                                                                        string
 	fp, mp, cch, claudeOAuthSystemPromptInjection, cacheTTL1h, rewriteMessageCacheControl bool
-	rewriteMessageCacheControlAccountWhitelist                                            map[int64]struct{}
+	rewriteMessageCacheControlUserWhitelist                                               map[int64]struct{}
 	clientDatelineNormalization                                                           bool
 	claudeOAuthSystemPrompt, claudeOAuthSystemPromptBlocks                                string
 }
@@ -749,17 +749,17 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 	if cached, ok := gatewayForwardingCache.Load().(*cachedGatewayForwardingSettings); ok && cached != nil {
 		if time.Now().UnixNano() < cached.expiresAt {
 			return gatewayForwardingSettingsResult{
-				openAITTFTMode:                   cached.openAITTFTMode,
-				fp:                               cached.fingerprintUnification,
-				mp:                               cached.metadataPassthrough,
-				cch:                              cached.cchSigning,
-				claudeOAuthSystemPromptInjection: cached.claudeOAuthSystemPromptInjection,
-				claudeOAuthSystemPrompt:          cached.claudeOAuthSystemPrompt,
-				claudeOAuthSystemPromptBlocks:    cached.claudeOAuthSystemPromptBlocks,
-				cacheTTL1h:                       cached.anthropicCacheTTL1hInjection,
-				rewriteMessageCacheControl:       cached.rewriteMessageCacheControl,
-				rewriteMessageCacheControlAccountWhitelist: cached.rewriteMessageCacheControlAccountWhitelist,
-				clientDatelineNormalization:                cached.clientDatelineNormalization,
+				openAITTFTMode:                          cached.openAITTFTMode,
+				fp:                                      cached.fingerprintUnification,
+				mp:                                      cached.metadataPassthrough,
+				cch:                                     cached.cchSigning,
+				claudeOAuthSystemPromptInjection:        cached.claudeOAuthSystemPromptInjection,
+				claudeOAuthSystemPrompt:                 cached.claudeOAuthSystemPrompt,
+				claudeOAuthSystemPromptBlocks:           cached.claudeOAuthSystemPromptBlocks,
+				cacheTTL1h:                              cached.anthropicCacheTTL1hInjection,
+				rewriteMessageCacheControl:              cached.rewriteMessageCacheControl,
+				rewriteMessageCacheControlUserWhitelist: cached.rewriteMessageCacheControlUserWhitelist,
+				clientDatelineNormalization:             cached.clientDatelineNormalization,
 			}
 		}
 	}
@@ -767,17 +767,17 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 		if cached, ok := gatewayForwardingCache.Load().(*cachedGatewayForwardingSettings); ok && cached != nil {
 			if time.Now().UnixNano() < cached.expiresAt {
 				return gatewayForwardingSettingsResult{
-					openAITTFTMode:                   cached.openAITTFTMode,
-					fp:                               cached.fingerprintUnification,
-					mp:                               cached.metadataPassthrough,
-					cch:                              cached.cchSigning,
-					claudeOAuthSystemPromptInjection: cached.claudeOAuthSystemPromptInjection,
-					claudeOAuthSystemPrompt:          cached.claudeOAuthSystemPrompt,
-					claudeOAuthSystemPromptBlocks:    cached.claudeOAuthSystemPromptBlocks,
-					cacheTTL1h:                       cached.anthropicCacheTTL1hInjection,
-					rewriteMessageCacheControl:       cached.rewriteMessageCacheControl,
-					rewriteMessageCacheControlAccountWhitelist: cached.rewriteMessageCacheControlAccountWhitelist,
-					clientDatelineNormalization:                cached.clientDatelineNormalization,
+					openAITTFTMode:                          cached.openAITTFTMode,
+					fp:                                      cached.fingerprintUnification,
+					mp:                                      cached.metadataPassthrough,
+					cch:                                     cached.cchSigning,
+					claudeOAuthSystemPromptInjection:        cached.claudeOAuthSystemPromptInjection,
+					claudeOAuthSystemPrompt:                 cached.claudeOAuthSystemPrompt,
+					claudeOAuthSystemPromptBlocks:           cached.claudeOAuthSystemPromptBlocks,
+					cacheTTL1h:                              cached.anthropicCacheTTL1hInjection,
+					rewriteMessageCacheControl:              cached.rewriteMessageCacheControl,
+					rewriteMessageCacheControlUserWhitelist: cached.rewriteMessageCacheControlUserWhitelist,
+					clientDatelineNormalization:             cached.clientDatelineNormalization,
 				}, nil
 			}
 		}
@@ -799,16 +799,16 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 		if err != nil {
 			slog.Warn("failed to get gateway forwarding settings", "error", err)
 			gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
-				openAITTFTMode:                             OpenAITTFTModeSemantic,
-				fingerprintUnification:                     true,
-				metadataPassthrough:                        false,
-				cchSigning:                                 false,
-				claudeOAuthSystemPromptInjection:           true,
-				anthropicCacheTTL1hInjection:               false,
-				rewriteMessageCacheControl:                 s.defaultRewriteMessageCacheControl(),
-				rewriteMessageCacheControlAccountWhitelist: nil,
-				clientDatelineNormalization:                true,
-				expiresAt:                                  time.Now().Add(gatewayForwardingErrorTTL).UnixNano(),
+				openAITTFTMode:                          OpenAITTFTModeSemantic,
+				fingerprintUnification:                  true,
+				metadataPassthrough:                     false,
+				cchSigning:                              false,
+				claudeOAuthSystemPromptInjection:        true,
+				anthropicCacheTTL1hInjection:            false,
+				rewriteMessageCacheControl:              s.defaultRewriteMessageCacheControl(),
+				rewriteMessageCacheControlUserWhitelist: nil,
+				clientDatelineNormalization:             true,
+				expiresAt:                               time.Now().Add(gatewayForwardingErrorTTL).UnixNano(),
 			})
 			return gatewayForwardingSettingsResult{openAITTFTMode: OpenAITTFTModeSemantic, fp: true, claudeOAuthSystemPromptInjection: true, rewriteMessageCacheControl: s.defaultRewriteMessageCacheControl(), clientDatelineNormalization: true}, nil
 		}
@@ -836,31 +836,31 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 			clientDatelineNormalization = v == "true"
 		}
 		gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
-			openAITTFTMode:                             ttftMode,
-			fingerprintUnification:                     fp,
-			metadataPassthrough:                        mp,
-			cchSigning:                                 cch,
-			claudeOAuthSystemPromptInjection:           systemPromptInjection,
-			claudeOAuthSystemPrompt:                    systemPrompt,
-			claudeOAuthSystemPromptBlocks:              systemPromptBlocks,
-			anthropicCacheTTL1hInjection:               cacheTTL1h,
-			rewriteMessageCacheControl:                 rewriteMessageCacheControl,
-			rewriteMessageCacheControlAccountWhitelist: cacheRewriteWhitelist,
-			clientDatelineNormalization:                clientDatelineNormalization,
-			expiresAt:                                  time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
+			openAITTFTMode:                          ttftMode,
+			fingerprintUnification:                  fp,
+			metadataPassthrough:                     mp,
+			cchSigning:                              cch,
+			claudeOAuthSystemPromptInjection:        systemPromptInjection,
+			claudeOAuthSystemPrompt:                 systemPrompt,
+			claudeOAuthSystemPromptBlocks:           systemPromptBlocks,
+			anthropicCacheTTL1hInjection:            cacheTTL1h,
+			rewriteMessageCacheControl:              rewriteMessageCacheControl,
+			rewriteMessageCacheControlUserWhitelist: cacheRewriteWhitelist,
+			clientDatelineNormalization:             clientDatelineNormalization,
+			expiresAt:                               time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
 		})
 		return gatewayForwardingSettingsResult{
-			openAITTFTMode:                   ttftMode,
-			fp:                               fp,
-			mp:                               mp,
-			cch:                              cch,
-			claudeOAuthSystemPromptInjection: systemPromptInjection,
-			claudeOAuthSystemPrompt:          systemPrompt,
-			claudeOAuthSystemPromptBlocks:    systemPromptBlocks,
-			cacheTTL1h:                       cacheTTL1h,
-			rewriteMessageCacheControl:       rewriteMessageCacheControl,
-			rewriteMessageCacheControlAccountWhitelist: cacheRewriteWhitelist,
-			clientDatelineNormalization:                clientDatelineNormalization,
+			openAITTFTMode:                          ttftMode,
+			fp:                                      fp,
+			mp:                                      mp,
+			cch:                                     cch,
+			claudeOAuthSystemPromptInjection:        systemPromptInjection,
+			claudeOAuthSystemPrompt:                 systemPrompt,
+			claudeOAuthSystemPromptBlocks:           systemPromptBlocks,
+			cacheTTL1h:                              cacheTTL1h,
+			rewriteMessageCacheControl:              rewriteMessageCacheControl,
+			rewriteMessageCacheControlUserWhitelist: cacheRewriteWhitelist,
+			clientDatelineNormalization:             clientDatelineNormalization,
 		}, nil
 	})
 	if r, ok := val.(gatewayForwardingSettingsResult); ok {
@@ -892,28 +892,28 @@ func (s *SettingService) IsRewriteMessageCacheControlEnabled(ctx context.Context
 	return s.getGatewayForwardingSettingsCached(ctx).rewriteMessageCacheControl
 }
 
-// IsRewriteMessageCacheControlEnabledForAccount applies the global switch and
-// skips the rewrite for account IDs on the operator whitelist.
-func (s *SettingService) IsRewriteMessageCacheControlEnabledForAccount(ctx context.Context, accountID int64) bool {
+// IsRewriteMessageCacheControlEnabledForUser applies the global switch and
+// skips the rewrite for user IDs on the operator exemption list.
+func (s *SettingService) IsRewriteMessageCacheControlEnabledForUser(ctx context.Context, userID int64) bool {
 	settings := s.getGatewayForwardingSettingsCached(ctx)
 	if !settings.rewriteMessageCacheControl {
 		return false
 	}
-	if accountID > 0 {
-		if _, exempt := settings.rewriteMessageCacheControlAccountWhitelist[accountID]; exempt {
+	if userID > 0 {
+		if _, exempt := settings.rewriteMessageCacheControlUserWhitelist[userID]; exempt {
 			return false
 		}
 	}
 	return true
 }
 
-// IsCacheModificationAccountWhitelisted reports whether an account is exempt
-// from operator-controlled cache rewrites and cache billing adjustments.
-func (s *SettingService) IsCacheModificationAccountWhitelisted(ctx context.Context, accountID int64) bool {
-	if accountID <= 0 {
+// IsCacheModificationUserWhitelisted reports whether a user is exempt from
+// operator-controlled cache rewrites and cache billing adjustments.
+func (s *SettingService) IsCacheModificationUserWhitelisted(ctx context.Context, userID int64) bool {
+	if userID <= 0 {
 		return false
 	}
-	_, ok := s.getGatewayForwardingSettingsCached(ctx).rewriteMessageCacheControlAccountWhitelist[accountID]
+	_, ok := s.getGatewayForwardingSettingsCached(ctx).rewriteMessageCacheControlUserWhitelist[userID]
 	return ok
 }
 

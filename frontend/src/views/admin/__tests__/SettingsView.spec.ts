@@ -799,7 +799,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(showSuccess).toHaveBeenCalled();
   });
 
-  it("saves the cache rewrite account allowlist with the cache billing card", async () => {
+  it("saves the cache billing exemption user allowlist with the cache billing card", async () => {
     const wrapper = mountView();
 
     await flushPromises();

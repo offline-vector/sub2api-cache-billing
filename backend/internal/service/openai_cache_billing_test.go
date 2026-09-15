@@ -166,22 +166,27 @@ func TestOpenAICacheBillingRatioSnapshotSurvivesForwardRetry(t *testing.T) {
 	}
 }
 
-func TestOpenAICacheBillingRatioAccountWhitelistUsesNeutralRatio(t *testing.T) {
-	// The same whitelist protects the account in both gateway implementations.
+func TestOpenAICacheBillingRatioUserWhitelistUsesNeutralRatio(t *testing.T) {
+	// The exemption follows the authenticated user across different upstream accounts.
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
 		SettingKeyRewriteMessageCacheControlAccountWhitelist: "42",
 	}}
 	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
-	account := &Account{ID: 42, Platform: PlatformOpenAI}
-	other := &Account{ID: 99, Platform: PlatformOpenAI}
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/responses", nil)
+	c.Set("api_key", &APIKey{UserID: 42})
+	account := &Account{ID: 99, Platform: PlatformOpenAI}
+	otherUserContext := context.Background()
 
 	gw := &GatewayService{settingService: NewSettingService(repo, &config.Config{Gateway: config.GatewayConfig{OpenAICacheBillingRatio: 0.6}})}
-	require.Equal(t, 1.0, gw.openAICacheBillingRatioForClient(context.Background(), account))
-	require.Equal(t, 0.6, gw.openAICacheBillingRatioForClient(context.Background(), other))
+	requestContext := gw.snapshotOpenAICacheBillingRatio(c.Request.Context(), c, account)
+	require.Equal(t, 1.0, gw.openAICacheBillingRatioForClient(requestContext, account))
+	require.Equal(t, 0.6, gw.openAICacheBillingRatioForClient(otherUserContext, account))
 
 	openai := &OpenAIGatewayService{settingService: NewSettingService(repo, &config.Config{Gateway: config.GatewayConfig{OpenAICacheBillingRatio: 0.6}})}
-	require.Equal(t, 1.0, openai.openAICacheBillingRatioForClient(context.Background(), account))
-	require.Equal(t, 0.6, openai.openAICacheBillingRatioForClient(context.Background(), other))
+	requestContext = openai.snapshotOpenAICacheBillingRatio(c.Request.Context(), c, account)
+	require.Equal(t, 1.0, openai.openAICacheBillingRatioForClient(requestContext, account))
+	require.Equal(t, 0.6, openai.openAICacheBillingRatioForClient(otherUserContext, account))
 }
 
 func TestRewriteOpenAICacheUsageForBilling(t *testing.T) {

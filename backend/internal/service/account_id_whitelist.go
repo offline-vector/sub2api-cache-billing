@@ -8,7 +8,7 @@ import (
 )
 
 // normalizeAccountIDWhitelist accepts either a JSON array or a comma/whitespace
-// separated list and returns a canonical JSON array of positive account IDs.
+// separated list and returns a canonical JSON array of positive numeric IDs.
 func normalizeAccountIDWhitelist(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
