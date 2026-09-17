@@ -1,0 +1,37 @@
+[Unit]
+Description=Sub2API isolated turn-state diagnostic
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+StartLimitIntervalSec=1800
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+SupplementaryGroups=docker
+ExecStart=/usr/bin/python3 /opt/sub2api/diagnostics/turn_state_probe.py --config /opt/sub2api/diagnostics/config.json --runtime-dir /var/lib/sub2api-turnstate
+Restart=on-failure
+RestartSec=300
+TimeoutStopSec=90
+KillMode=control-group
+StateDirectory=sub2api-turnstate
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LimitCORE=0
+MemoryMax=256M
+CPUQuota=50%
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

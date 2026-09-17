@@ -250,6 +250,7 @@ type OpenAIForwardResult struct {
 	// response before any client-facing rewrite or protocol conversion.
 	UpstreamResponseModel         string
 	UpstreamResponseModelConflict bool
+	TurnStateAudit                *TurnStateAudit
 	// UpstreamResponseServiceTier is the tier the upstream reports having used
 	// (response service_tier: "priority" / "default" / "flex" / ...); "" when not declared.
 	UpstreamResponseServiceTier string
@@ -505,8 +506,11 @@ type OpenAIGatewayService struct {
 	// openaiCodexTurnStateOrigins: 下游会话 seed → openAICodexTurnStateOrigin，
 	// 记录最近一次向该会话下发 x-codex-turn-state 的铸造账号，供出站守卫
 	// 剥离跨账号回带（openai_codex_turn_state.go）。
-	openaiCodexTurnStateOrigins sync.Map
-	openaiCodexTurnStateWrites  atomic.Uint64
+	openaiCodexTurnStateOrigins     sync.Map
+	openaiCodexTurnStateWrites      atomic.Uint64
+	openaiPreferredTurnStates       sync.Map // account + model + execution scope -> preferredOpenAITurnState
+	openaiPreferredTurnStateSends   atomic.Uint64
+	openaiSharedProbeTurnStateReads atomic.Uint64
 }
 
 // NewOpenAIGatewayService creates a new OpenAIGatewayService

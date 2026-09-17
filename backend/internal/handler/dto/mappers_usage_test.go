@@ -28,6 +28,18 @@ func TestUsageLogFromService_IncludesOpenAIWSMode(t *testing.T) {
 	require.False(t, UsageLogFromServiceAdmin(httpLog).OpenAIWSMode)
 }
 
+func TestUsageLogFromService_TurnStateAuditAdminOnly(t *testing.T) {
+	log := &service.UsageLog{TurnStateAudit: &service.TurnStateAudit{SentLength: 292, ReceivedLength: 312, Transport: "http"}}
+	userJSON, err := json.Marshal(UsageLogFromService(log))
+	require.NoError(t, err)
+	require.NotContains(t, string(userJSON), "turn_state_audit")
+	admin := UsageLogFromServiceAdmin(log)
+	require.Equal(t, log.TurnStateAudit, admin.TurnStateAudit)
+	historicalJSON, err := json.Marshal(UsageLogFromServiceAdmin(&service.UsageLog{}))
+	require.NoError(t, err)
+	require.Contains(t, string(historicalJSON), `"turn_state_audit":null`)
+}
+
 func TestUsageLogFromService_CacheBillingAuditIsAdminOnly(t *testing.T) {
 	t.Parallel()
 	upstreamRequestID := "upstream-cache-audit"

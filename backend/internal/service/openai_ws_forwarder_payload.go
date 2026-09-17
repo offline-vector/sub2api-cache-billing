@@ -141,6 +141,10 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 	if state := strings.TrimSpace(turnState); state != "" {
 		headers.Set(openAIWSTurnStateHeader, state)
 	}
+	if c != nil {
+		c.Set(openAITurnStateModelContextKey, strings.TrimSpace(routingModel))
+	}
+	s.selectPreferredOpenAITurnState(c, account, headers)
 	if metadata := strings.TrimSpace(turnMetadata); metadata != "" {
 		headers.Set(openAIWSTurnMetadataHeader, metadata)
 	}

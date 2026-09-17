@@ -251,7 +251,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		applyCodexAccountIdentityClientMetadataMap(reqBody, codexAccountIdentitySource(c, account), apiKeyID)
 		delete(reqBody, "prompt_cache_key")
 		if shouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
-			compatTurnState = s.getOpenAICompatSessionTurnState(ctx, c, account, promptCacheKey)
+			compatTurnState = s.getOpenAICompatSessionTurnState(ctx, c, account, promptCacheKey, upstreamModel)
 		}
 		// OAuth codex transform forces stream=true upstream, so always use
 		// the streaming response handler regardless of what the client asked.
@@ -381,7 +381,10 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	if account.UsesOpenAICodexProtocol() && promptCacheKey != "" && strings.TrimSpace(c.GetHeader("conversation_id")) == "" {
 		upstreamReq.Header.Del("conversation_id")
 	}
-	if compatTurnState != "" && upstreamReq.Header.Get("x-codex-turn-state") == "" {
+	// The Messages bridge uses its own prompt/session-scoped preferred state.
+	// Do not inherit a different compatibility conversation's retained token.
+	upstreamReq.Header.Del(openAICodexTurnStateHeader)
+	if len(compatTurnState) == openAIPreferredTurnStateLength {
 		upstreamReq.Header.Set("x-codex-turn-state", compatTurnState)
 	}
 
@@ -491,7 +494,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 
 	if account.UsesOpenAICodexProtocol() && promptCacheKey != "" {
 		if turnState := strings.TrimSpace(resp.Header.Get("x-codex-turn-state")); turnState != "" {
-			s.bindOpenAICompatSessionTurnState(ctx, c, account, promptCacheKey, turnState)
+			s.bindOpenAICompatSessionTurnState(ctx, c, account, promptCacheKey, turnState, upstreamModel)
 		}
 	}
 
@@ -666,6 +669,7 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 	result := &OpenAIForwardResult{
 		RequestID:                     requestID,
 		UpstreamHeaders:               resp.Header,
+		TurnStateAudit:                observedHTTPTurnState(resp),
 		ResponseID:                    finalResponse.ID,
 		Usage:                         usage,
 		Model:                         originalModel,
@@ -973,6 +977,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		out := &OpenAIForwardResult{
 			RequestID:                     requestID,
 			UpstreamHeaders:               resp.Header,
+			TurnStateAudit:                observedHTTPTurnState(resp),
 			ResponseID:                    responseID,
 			Usage:                         usage,
 			Model:                         originalModel,

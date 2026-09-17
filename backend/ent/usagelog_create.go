@@ -127,6 +127,12 @@ func (_c *UsageLogCreate) SetNillableChannelID(v *int64) *UsageLogCreate {
 	return _c
 }
 
+// SetTurnStateAudit sets the "turn_state_audit" field.
+func (_c *UsageLogCreate) SetTurnStateAudit(v map[string]interface{}) *UsageLogCreate {
+	_c.mutation.SetTurnStateAudit(v)
+	return _c
+}
+
 // SetModelMappingChain sets the "model_mapping_chain" field.
 func (_c *UsageLogCreate) SetModelMappingChain(v string) *UsageLogCreate {
 	_c.mutation.SetModelMappingChain(v)
@@ -1079,6 +1085,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 		_spec.SetField(usagelog.FieldChannelID, field.TypeInt64, value)
 		_node.ChannelID = &value
 	}
+	if value, ok := _c.mutation.TurnStateAudit(); ok {
+		_spec.SetField(usagelog.FieldTurnStateAudit, field.TypeJSON, value)
+		_node.TurnStateAudit = value
+	}
 	if value, ok := _c.mutation.ModelMappingChain(); ok {
 		_spec.SetField(usagelog.FieldModelMappingChain, field.TypeString, value)
 		_node.ModelMappingChain = &value
@@ -1525,6 +1535,24 @@ func (u *UsageLogUpsert) AddChannelID(v int64) *UsageLogUpsert {
 // ClearChannelID clears the value of the "channel_id" field.
 func (u *UsageLogUpsert) ClearChannelID() *UsageLogUpsert {
 	u.SetNull(usagelog.FieldChannelID)
+	return u
+}
+
+// SetTurnStateAudit sets the "turn_state_audit" field.
+func (u *UsageLogUpsert) SetTurnStateAudit(v map[string]interface{}) *UsageLogUpsert {
+	u.Set(usagelog.FieldTurnStateAudit, v)
+	return u
+}
+
+// UpdateTurnStateAudit sets the "turn_state_audit" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateTurnStateAudit() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldTurnStateAudit)
+	return u
+}
+
+// ClearTurnStateAudit clears the value of the "turn_state_audit" field.
+func (u *UsageLogUpsert) ClearTurnStateAudit() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldTurnStateAudit)
 	return u
 }
 
@@ -2478,6 +2506,27 @@ func (u *UsageLogUpsertOne) UpdateChannelID() *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) ClearChannelID() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearChannelID()
+	})
+}
+
+// SetTurnStateAudit sets the "turn_state_audit" field.
+func (u *UsageLogUpsertOne) SetTurnStateAudit(v map[string]interface{}) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetTurnStateAudit(v)
+	})
+}
+
+// UpdateTurnStateAudit sets the "turn_state_audit" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateTurnStateAudit() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateTurnStateAudit()
+	})
+}
+
+// ClearTurnStateAudit clears the value of the "turn_state_audit" field.
+func (u *UsageLogUpsertOne) ClearTurnStateAudit() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearTurnStateAudit()
 	})
 }
 
@@ -3718,6 +3767,27 @@ func (u *UsageLogUpsertBulk) UpdateChannelID() *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) ClearChannelID() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearChannelID()
+	})
+}
+
+// SetTurnStateAudit sets the "turn_state_audit" field.
+func (u *UsageLogUpsertBulk) SetTurnStateAudit(v map[string]interface{}) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetTurnStateAudit(v)
+	})
+}
+
+// UpdateTurnStateAudit sets the "turn_state_audit" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateTurnStateAudit() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateTurnStateAudit()
+	})
+}
+
+// ClearTurnStateAudit clears the value of the "turn_state_audit" field.
+func (u *UsageLogUpsertBulk) ClearTurnStateAudit() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearTurnStateAudit()
 	})
 }
 

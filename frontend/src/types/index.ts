@@ -1763,6 +1763,7 @@ export interface UsageLogAccountSummary {
 }
 
 export interface AdminUsageLog extends UsageLog {
+  turn_state_audit?: { sent_length: number; received_length: number; transport: string } | null
 	upstream_input_tokens?: number
 	upstream_cache_read_tokens?: number
 	cache_billing_ratio?: number

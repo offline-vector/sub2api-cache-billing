@@ -19,6 +19,11 @@ import { nextTick } from 'vue'
 import UsageTable from '../UsageTable.vue'
 
 const messages: Record<string, string> = {
+  'usage.turnStateSent': 'State sent',
+  'usage.turnStateReceived': 'received',
+  'usage.turnStateAbsent': 'none',
+  'usage.turnStateUnknown': 'State not recorded',
+  'usage.turnStateHandshake': 'connection handshake',
   'admin.usage.userDeletedBadge': 'Deleted',
   'usage.costDetails': 'Cost Breakdown',
   'admin.usage.inputCost': 'Input Cost',
@@ -129,6 +134,32 @@ const baseImageRow = {
 }
 
 describe('admin UsageTable tooltip', () => {
+  it.each([
+    [null, 'State not recorded'],
+    [{ sent_length: 0, received_length: 292, transport: 'http' }, 'State sent: none · received: 292'],
+    [{ sent_length: 292, received_length: 312, transport: 'http' }, 'State sent: 292 · received: 312'],
+    [{ sent_length: 0, received_length: 0, transport: 'ws_handshake' }, 'State sent: none · received: none (connection handshake)'],
+  ])('distinguishes state header observations: %j', (audit, expected) => {
+    const wrapper = mount(UsageTable, {
+      props: { data: [{ ...baseImageRow, turn_state_audit: audit }], loading: false, columns: [] },
+      global: { stubs: { DataTable: DataTableStub, Icon: true, Teleport: true } },
+    })
+    expect(wrapper.get('[data-testid="turn-state-audit"]').text()).toBe(expected)
+    if (audit) {
+      expect(wrapper.get('[data-testid="turn-state-received"]').classes().includes('text-red-600')).toBe(audit.received_length === 312)
+    }
+    wrapper.unmount()
+  })
+
+  it('does not render state audit in the user table', () => {
+    const wrapper = mount(UsageTable, {
+      props: { data: [{ ...baseImageRow, turn_state_audit: { sent_length: 292, received_length: 312, transport: 'http' } }], loading: false, columns: [], showAccountBilling: false },
+      global: { stubs: { DataTable: DataTableStub, Icon: true, Teleport: true } },
+    })
+    expect(wrapper.find('[data-testid="turn-state-audit"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       x: 0,
@@ -318,7 +349,8 @@ describe('admin UsageTable tooltip', () => {
     const triggers = wrapper.findAll('.group.relative')
     await triggers[triggers.length - 1].trigger('mouseenter')
     const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text()).filter(text => text.startsWith('$'))
-    expect(amounts).toEqual(['$0.00000000', '$0.00000000', '$0.00000000', '$0.00000000'])
+    // Includes the separate admin upstream-metered total as well as customer total.
+    expect(amounts).toEqual(['$0.00000000', '$0.00000000', '$0.00000000', '$0.00000000', '$0.00000000'])
     wrapper.unmount()
   })
 

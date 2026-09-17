@@ -322,6 +322,27 @@ export default {
 
   // Usage
   usage: {
+    turnStateSent: 'State sent',
+    turnStateReceived: 'received',
+    turnStateAbsent: 'none',
+    turnStateHandshake: 'connection handshake',
+    turnStateUnknown: 'State not recorded',
+    probeLogs: {
+      title: 'Probe attempt logs',
+      description: 'Read-only diagnostic history; no new requests are sent. Proxy numbers identify entries, not observed exit IPs. 292/312 are lengths only, not proof of compute quality or the cause of a 429. Missing historical fields appear as —.',
+      account: 'Account ID', model: 'Model', all: 'All', filter: 'Filter', refresh: 'Refresh', loading: 'Loading…',
+      autoRefresh: 'Refresh every 10 seconds', online: 'Worker running', offline: 'Worker stopped or status unavailable', updated: 'Status checked',
+      retention: 'Up to {count} recent entries', historyPaused: 'Viewing history; auto-refresh paused',
+      empty: 'No matching records. Refresh if the cursor entry has rotated out.', latest: 'Back to latest', older: 'Older records',
+      route: 'Route / proxy ID', attempt: 'Run attempt', responseModel: 'Response-declared model', error: 'Error code / type', wait: 'Wait',
+      shared: 'Shared pool write', published: 'Written this attempt', notPublished: 'Not written this attempt', completed: 'Response completed', incomplete: 'Incomplete / error',
+      invalidAccount: 'Enter a positive integer account ID, or leave blank for all.', loadError: 'Could not load attempt logs. Please refresh to retry.',
+      events: {
+        batch_start: 'Worker started', batch_stopped: 'Worker stopped', batch_complete: 'Run complete',
+        rate_limit_backoff: '429 / rate-limit wait', direct_replay_checked: 'Direct replay check',
+        account_model_stopped: 'Account/model stopped', proxy_inventory_unavailable: 'Proxy inventory unavailable', no_active_proxy: 'No active proxy',
+      },
+    },
     title: 'Usage Records',
     description: 'View and analyze your API usage history',
     costDetails: 'Cost Breakdown',

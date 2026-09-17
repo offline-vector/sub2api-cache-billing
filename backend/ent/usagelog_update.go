@@ -209,6 +209,18 @@ func (_u *UsageLogUpdate) ClearChannelID() *UsageLogUpdate {
 	return _u
 }
 
+// SetTurnStateAudit sets the "turn_state_audit" field.
+func (_u *UsageLogUpdate) SetTurnStateAudit(v map[string]interface{}) *UsageLogUpdate {
+	_u.mutation.SetTurnStateAudit(v)
+	return _u
+}
+
+// ClearTurnStateAudit clears the value of the "turn_state_audit" field.
+func (_u *UsageLogUpdate) ClearTurnStateAudit() *UsageLogUpdate {
+	_u.mutation.ClearTurnStateAudit()
+	return _u
+}
+
 // SetModelMappingChain sets the "model_mapping_chain" field.
 func (_u *UsageLogUpdate) SetModelMappingChain(v string) *UsageLogUpdate {
 	_u.mutation.SetModelMappingChain(v)
@@ -1258,6 +1270,12 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.ChannelIDCleared() {
 		_spec.ClearField(usagelog.FieldChannelID, field.TypeInt64)
 	}
+	if value, ok := _u.mutation.TurnStateAudit(); ok {
+		_spec.SetField(usagelog.FieldTurnStateAudit, field.TypeJSON, value)
+	}
+	if _u.mutation.TurnStateAuditCleared() {
+		_spec.ClearField(usagelog.FieldTurnStateAudit, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.ModelMappingChain(); ok {
 		_spec.SetField(usagelog.FieldModelMappingChain, field.TypeString, value)
 	}
@@ -1828,6 +1846,18 @@ func (_u *UsageLogUpdateOne) AddChannelID(v int64) *UsageLogUpdateOne {
 // ClearChannelID clears the value of the "channel_id" field.
 func (_u *UsageLogUpdateOne) ClearChannelID() *UsageLogUpdateOne {
 	_u.mutation.ClearChannelID()
+	return _u
+}
+
+// SetTurnStateAudit sets the "turn_state_audit" field.
+func (_u *UsageLogUpdateOne) SetTurnStateAudit(v map[string]interface{}) *UsageLogUpdateOne {
+	_u.mutation.SetTurnStateAudit(v)
+	return _u
+}
+
+// ClearTurnStateAudit clears the value of the "turn_state_audit" field.
+func (_u *UsageLogUpdateOne) ClearTurnStateAudit() *UsageLogUpdateOne {
+	_u.mutation.ClearTurnStateAudit()
 	return _u
 }
 
@@ -2909,6 +2939,12 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if _u.mutation.ChannelIDCleared() {
 		_spec.ClearField(usagelog.FieldChannelID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.TurnStateAudit(); ok {
+		_spec.SetField(usagelog.FieldTurnStateAudit, field.TypeJSON, value)
+	}
+	if _u.mutation.TurnStateAuditCleared() {
+		_spec.ClearField(usagelog.FieldTurnStateAudit, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.ModelMappingChain(); ok {
 		_spec.SetField(usagelog.FieldModelMappingChain, field.TypeString, value)
