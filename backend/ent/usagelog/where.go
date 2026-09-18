@@ -790,16 +790,6 @@ func ChannelIDNotNil() predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldNotNull(FieldChannelID))
 }
 
-// TurnStateAuditIsNil applies the IsNil predicate on the "turn_state_audit" field.
-func TurnStateAuditIsNil() predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldIsNull(FieldTurnStateAudit))
-}
-
-// TurnStateAuditNotNil applies the NotNil predicate on the "turn_state_audit" field.
-func TurnStateAuditNotNil() predicate.UsageLog {
-	return predicate.UsageLog(sql.FieldNotNull(FieldTurnStateAudit))
-}
-
 // ModelMappingChainEQ applies the EQ predicate on the "model_mapping_chain" field.
 func ModelMappingChainEQ(v string) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldModelMappingChain, v))

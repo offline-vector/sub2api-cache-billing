@@ -1070,7 +1070,7 @@ func TestForwardAsAnthropic_ReusesOAuthCodexTurnState(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_first", "gpt-5.4")
-	firstResp.Header.Set("x-codex-turn-state", preferredTurnStateFixture("turn_state_first"))
+	firstResp.Header.Set("x-codex-turn-state", "turn_state_first")
 	upstream := &httpUpstreamRecorder{responses: []*http.Response{
 		firstResp,
 		openAICompatSSECompletedResponse("resp_oauth_second", "gpt-5.4"),
@@ -1112,7 +1112,7 @@ func TestForwardAsAnthropic_ReusesOAuthCodexTurnState(t *testing.T) {
 	secondResult, err := svc.ForwardAsAnthropic(context.Background(), secondCtx, account, secondBody, "stable-cache-key", "gpt-5.4")
 	require.NoError(t, err)
 	require.NotNil(t, secondResult)
-	require.Equal(t, preferredTurnStateFixture("turn_state_first"), upstream.requests[1].Header.Get("x-codex-turn-state"))
+	require.Equal(t, "turn_state_first", upstream.requests[1].Header.Get("x-codex-turn-state"))
 	require.Equal(t, generateSessionUUID(isolateOpenAIUpstreamSessionID(0, account, "stable-cache-key")), upstream.requests[1].Header.Get("session_id"))
 	require.Empty(t, upstream.requests[1].Header.Get("conversation_id"))
 	requireOpenAIMessagesCodexIdentity(t, upstream.requests[1], codexCLIUserAgent, openai.CodexDefaultOriginator)
@@ -1176,7 +1176,7 @@ func TestForwardAsAnthropic_OAuthDigestFallbackReusesTurnStateWithoutExplicitKey
 	gin.SetMode(gin.TestMode)
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_digest_first", "gpt-5.4")
-	firstResp.Header.Set("x-codex-turn-state", preferredTurnStateFixture("turn_state_digest_first"))
+	firstResp.Header.Set("x-codex-turn-state", "turn_state_digest_first")
 	upstream := &httpUpstreamRecorder{responses: []*http.Response{
 		firstResp,
 		openAICompatSSECompletedResponse("resp_oauth_digest_second", "gpt-5.4"),
@@ -1222,7 +1222,7 @@ func TestForwardAsAnthropic_OAuthDigestFallbackReusesTurnStateWithoutExplicitKey
 	require.NoError(t, err)
 	require.NotNil(t, secondResult)
 	require.Equal(t, firstSessionID, upstream.requests[1].Header.Get("session_id"))
-	require.Equal(t, preferredTurnStateFixture("turn_state_digest_first"), upstream.requests[1].Header.Get("x-codex-turn-state"))
+	require.Equal(t, "turn_state_digest_first", upstream.requests[1].Header.Get("x-codex-turn-state"))
 	require.Empty(t, upstream.requests[1].Header.Get("conversation_id"))
 	requireOpenAIMessagesCodexIdentity(t, upstream.requests[1], codexCLIUserAgent, openai.CodexDefaultOriginator)
 	require.False(t, gjson.GetBytes(upstream.bodies[1], "prompt_cache_key").Exists())
@@ -1234,7 +1234,7 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesDigestPrefixRewrite(t *t
 	gin.SetMode(gin.TestMode)
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_metadata_first", "gpt-5.5")
-	firstResp.Header.Set("x-codex-turn-state", preferredTurnStateFixture("turn_state_metadata_first"))
+	firstResp.Header.Set("x-codex-turn-state", "turn_state_metadata_first")
 	upstream := &httpUpstreamRecorder{responses: []*http.Response{
 		firstResp,
 		openAICompatSSECompletedResponse("resp_oauth_metadata_second", "gpt-5.5"),
@@ -1280,7 +1280,7 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesDigestPrefixRewrite(t *t
 	require.NoError(t, err)
 	require.NotNil(t, secondResult)
 	require.Equal(t, firstSessionID, upstream.requests[1].Header.Get("session_id"))
-	require.Equal(t, preferredTurnStateFixture("turn_state_metadata_first"), upstream.requests[1].Header.Get("x-codex-turn-state"))
+	require.Equal(t, "turn_state_metadata_first", upstream.requests[1].Header.Get("x-codex-turn-state"))
 	require.Empty(t, upstream.requests[1].Header.Get("conversation_id"))
 	require.False(t, gjson.GetBytes(upstream.bodies[1], "prompt_cache_key").Exists())
 	require.False(t, gjson.GetBytes(upstream.bodies[1], "previous_response_id").Exists())
@@ -1291,7 +1291,7 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesChangingCacheControlAnch
 	gin.SetMode(gin.TestMode)
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_cache_anchor_first", "gpt-5.5")
-	firstResp.Header.Set("x-codex-turn-state", preferredTurnStateFixture("turn_state_cache_anchor_first"))
+	firstResp.Header.Set("x-codex-turn-state", "turn_state_cache_anchor_first")
 	upstream := &httpUpstreamRecorder{responses: []*http.Response{
 		firstResp,
 		openAICompatSSECompletedResponse("resp_oauth_cache_anchor_second", "gpt-5.5"),
@@ -1337,7 +1337,7 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesChangingCacheControlAnch
 	require.NoError(t, err)
 	require.NotNil(t, secondResult)
 	require.Equal(t, firstSessionID, upstream.requests[1].Header.Get("session_id"))
-	require.Equal(t, preferredTurnStateFixture("turn_state_cache_anchor_first"), upstream.requests[1].Header.Get("x-codex-turn-state"))
+	require.Equal(t, "turn_state_cache_anchor_first", upstream.requests[1].Header.Get("x-codex-turn-state"))
 	require.Empty(t, upstream.requests[1].Header.Get("conversation_id"))
 	require.False(t, gjson.GetBytes(upstream.bodies[1], "prompt_cache_key").Exists())
 	require.False(t, gjson.GetBytes(upstream.bodies[1], "previous_response_id").Exists())

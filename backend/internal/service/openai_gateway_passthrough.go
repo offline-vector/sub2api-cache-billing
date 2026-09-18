@@ -441,7 +441,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		// 在各 handler 的写头点强制放行，铸造账号在此统一记录，供出站守卫剥离
 		// failover 换号后的跨账号回带（openai_codex_turn_state.go）。
 		if extractOpenAICodexTurnState(resp.Header) != "" {
-			s.noteOpenAICodexTurnStateProvenance(c, account, extractOpenAICodexTurnState(resp.Header))
+			s.noteOpenAICodexTurnStateProvenance(c, account)
 		}
 
 		if reqStream {
@@ -520,7 +520,6 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	forwardResult := &OpenAIForwardResult{
 		RequestID:                     resp.Header.Get("x-request-id"),
 		UpstreamHeaders:               resp.Header,
-		TurnStateAudit:                observedHTTPTurnState(resp),
 		ResponseID:                    responseID,
 		Usage:                         *usage,
 		Model:                         reqModel,
@@ -629,11 +628,9 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 		}
 	}
 
-	// Validate exact token provenance against the actual outbound account/model.
-	if c != nil {
-		c.Set(openAITurnStateModelContextKey, strings.TrimSpace(gjson.GetBytes(body, "model").String()))
-	}
-	s.selectPreferredOpenAITurnState(c, account, req.Header)
+	// 客户端回带的 x-codex-turn-state 若已知由其他账号铸造（failover 换号），
+	// 剥离后再出站（openai_codex_turn_state.go）。
+	s.guardOpenAICodexTurnStateEcho(c, account, req.Header)
 
 	// 覆盖入站鉴权残留，并注入上游认证
 	req.Header.Del("authorization")

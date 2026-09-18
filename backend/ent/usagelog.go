@@ -43,8 +43,6 @@ type UsageLog struct {
 	UpstreamModelMismatch *bool `json:"upstream_model_mismatch,omitempty"`
 	// 渠道 ID
 	ChannelID *int64 `json:"channel_id,omitempty"`
-	// TurnStateAudit holds the value of the "turn_state_audit" field.
-	TurnStateAudit map[string]interface{} `json:"turn_state_audit,omitempty"`
 	// 模型映射链
 	ModelMappingChain *string `json:"model_mapping_chain,omitempty"`
 	// 计费层级标签
@@ -210,7 +208,7 @@ func (*UsageLog) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case usagelog.FieldTurnStateAudit, usagelog.FieldImageSizeBreakdown:
+		case usagelog.FieldImageSizeBreakdown:
 			values[i] = new([]byte)
 		case usagelog.FieldUpstreamModelMismatch, usagelog.FieldLongContextBillingApplied, usagelog.FieldStream, usagelog.FieldCacheTTLOverridden:
 			values[i] = new(sql.NullBool)
@@ -307,14 +305,6 @@ func (_m *UsageLog) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ChannelID = new(int64)
 				*_m.ChannelID = value.Int64
-			}
-		case usagelog.FieldTurnStateAudit:
-			if value, ok := values[i].(*[]byte); !ok {
-				return fmt.Errorf("unexpected type %T for field turn_state_audit", values[i])
-			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &_m.TurnStateAudit); err != nil {
-					return fmt.Errorf("unmarshal field turn_state_audit: %w", err)
-				}
 			}
 		case usagelog.FieldModelMappingChain:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -680,9 +670,6 @@ func (_m *UsageLog) String() string {
 		builder.WriteString("channel_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
-	builder.WriteString(", ")
-	builder.WriteString("turn_state_audit=")
-	builder.WriteString(fmt.Sprintf("%v", _m.TurnStateAudit))
 	builder.WriteString(", ")
 	if v := _m.ModelMappingChain; v != nil {
 		builder.WriteString("model_mapping_chain=")

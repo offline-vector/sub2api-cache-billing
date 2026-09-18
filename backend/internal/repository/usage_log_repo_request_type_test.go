@@ -106,7 +106,6 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			1.0, // unset cache_billing_ratio is normalized to the neutral ratio
 			log.UpstreamTotalCost,
 			log.NativeCompactionV2,
-			sqlmock.AnyArg(), // turn_state_audit
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
@@ -206,7 +205,6 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			1.0, // unset cache_billing_ratio is normalized to the neutral ratio
 			log.UpstreamTotalCost,
 			log.NativeCompactionV2,
-			sqlmock.AnyArg(), // turn_state_audit
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
@@ -871,12 +869,11 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{},
 			sql.NullString{}, // upstream_request_id
 			sql.NullString{},
-			0,                // upstream_input_tokens
-			0,                // upstream_cache_read_tokens
-			1.0,              // cache_billing_ratio
-			0.0,              // upstream_total_cost
-			false,            // native_compaction_v2
-			sql.NullString{}, // turn_state_audit
+			0,     // upstream_input_tokens
+			0,     // upstream_cache_read_tokens
+			1.0,   // cache_billing_ratio
+			0.0,   // upstream_total_cost
+			false, // native_compaction_v2
 			now,
 		}})
 		require.NoError(t, err)
@@ -961,7 +958,6 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			0.6,               // cache_billing_ratio
 			1.2,               // upstream_total_cost
 			false,             // native_compaction_v2
-			sql.NullString{},  // turn_state_audit
 			now,
 		}})
 		require.NoError(t, err)
@@ -1033,7 +1029,6 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			1.0,               // cache_billing_ratio
 			0.0,               // upstream_total_cost
 			true,              // native_compaction_v2
-			sql.NullString{},  // turn_state_audit
 			now,
 		}})
 		require.NoError(t, err)
@@ -1101,7 +1096,6 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			1.0,               // cache_billing_ratio
 			0.0,               // upstream_total_cost
 			false,             // native_compaction_v2
-			sql.NullString{},  // turn_state_audit
 			now,
 		}})
 		require.NoError(t, err)

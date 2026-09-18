@@ -44538,7 +44538,6 @@ type UsageLogMutation struct {
 	upstream_model_mismatch       *bool
 	channel_id                    *int64
 	addchannel_id                 *int64
-	turn_state_audit              *map[string]interface{}
 	model_mapping_chain           *string
 	billing_tier                  *string
 	billing_mode                  *string
@@ -45160,55 +45159,6 @@ func (m *UsageLogMutation) ResetChannelID() {
 	m.channel_id = nil
 	m.addchannel_id = nil
 	delete(m.clearedFields, usagelog.FieldChannelID)
-}
-
-// SetTurnStateAudit sets the "turn_state_audit" field.
-func (m *UsageLogMutation) SetTurnStateAudit(value map[string]interface{}) {
-	m.turn_state_audit = &value
-}
-
-// TurnStateAudit returns the value of the "turn_state_audit" field in the mutation.
-func (m *UsageLogMutation) TurnStateAudit() (r map[string]interface{}, exists bool) {
-	v := m.turn_state_audit
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldTurnStateAudit returns the old "turn_state_audit" field's value of the UsageLog entity.
-// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *UsageLogMutation) OldTurnStateAudit(ctx context.Context) (v map[string]interface{}, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldTurnStateAudit is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldTurnStateAudit requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldTurnStateAudit: %w", err)
-	}
-	return oldValue.TurnStateAudit, nil
-}
-
-// ClearTurnStateAudit clears the value of the "turn_state_audit" field.
-func (m *UsageLogMutation) ClearTurnStateAudit() {
-	m.turn_state_audit = nil
-	m.clearedFields[usagelog.FieldTurnStateAudit] = struct{}{}
-}
-
-// TurnStateAuditCleared returns if the "turn_state_audit" field was cleared in this mutation.
-func (m *UsageLogMutation) TurnStateAuditCleared() bool {
-	_, ok := m.clearedFields[usagelog.FieldTurnStateAudit]
-	return ok
-}
-
-// ResetTurnStateAudit resets all changes to the "turn_state_audit" field.
-func (m *UsageLogMutation) ResetTurnStateAudit() {
-	m.turn_state_audit = nil
-	delete(m.clearedFields, usagelog.FieldTurnStateAudit)
 }
 
 // SetModelMappingChain sets the "model_mapping_chain" field.
@@ -47561,7 +47511,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 52)
+	fields := make([]string, 0, 51)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -47591,9 +47541,6 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.channel_id != nil {
 		fields = append(fields, usagelog.FieldChannelID)
-	}
-	if m.turn_state_audit != nil {
-		fields = append(fields, usagelog.FieldTurnStateAudit)
 	}
 	if m.model_mapping_chain != nil {
 		fields = append(fields, usagelog.FieldModelMappingChain)
@@ -47746,8 +47693,6 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.UpstreamModelMismatch()
 	case usagelog.FieldChannelID:
 		return m.ChannelID()
-	case usagelog.FieldTurnStateAudit:
-		return m.TurnStateAudit()
 	case usagelog.FieldModelMappingChain:
 		return m.ModelMappingChain()
 	case usagelog.FieldBillingTier:
@@ -47859,8 +47804,6 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldUpstreamModelMismatch(ctx)
 	case usagelog.FieldChannelID:
 		return m.OldChannelID(ctx)
-	case usagelog.FieldTurnStateAudit:
-		return m.OldTurnStateAudit(ctx)
 	case usagelog.FieldModelMappingChain:
 		return m.OldModelMappingChain(ctx)
 	case usagelog.FieldBillingTier:
@@ -48021,13 +47964,6 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetChannelID(v)
-		return nil
-	case usagelog.FieldTurnStateAudit:
-		v, ok := value.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetTurnStateAudit(v)
 		return nil
 	case usagelog.FieldModelMappingChain:
 		v, ok := value.(string)
@@ -48664,9 +48600,6 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldChannelID) {
 		fields = append(fields, usagelog.FieldChannelID)
 	}
-	if m.FieldCleared(usagelog.FieldTurnStateAudit) {
-		fields = append(fields, usagelog.FieldTurnStateAudit)
-	}
 	if m.FieldCleared(usagelog.FieldModelMappingChain) {
 		fields = append(fields, usagelog.FieldModelMappingChain)
 	}
@@ -48746,9 +48679,6 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldChannelID:
 		m.ClearChannelID()
-		return nil
-	case usagelog.FieldTurnStateAudit:
-		m.ClearTurnStateAudit()
 		return nil
 	case usagelog.FieldModelMappingChain:
 		m.ClearModelMappingChain()
@@ -48838,9 +48768,6 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldChannelID:
 		m.ResetChannelID()
-		return nil
-	case usagelog.FieldTurnStateAudit:
-		m.ResetTurnStateAudit()
 		return nil
 	case usagelog.FieldModelMappingChain:
 		m.ResetModelMappingChain()

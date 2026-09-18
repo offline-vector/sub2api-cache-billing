@@ -670,7 +670,6 @@ type UsageLog struct {
 // AdminUsageLog 是管理员接口使用的 usage log DTO（包含管理员字段）。
 type AdminUsageLog struct {
 	UsageLog
-	TurnStateAudit *service.TurnStateAudit `json:"turn_state_audit"`
 
 	// Cache billing audit fields are admin-only provider metering snapshots.
 	UpstreamInputTokens     int     `json:"upstream_input_tokens"`

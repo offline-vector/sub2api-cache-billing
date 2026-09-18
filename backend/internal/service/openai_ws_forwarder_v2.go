@@ -131,16 +131,8 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	if executionScope = strings.TrimSpace(executionScope); executionScope != "" {
 		sessionHash = executionScope
 	}
-	if c != nil {
-		c.Set(openAITurnStateScopeContextKey, executionScope)
-		c.Set(openAITurnStateModelContextKey, openAIWSPayloadString(payload, "model"))
-		incoming := http.Header{}
-		incoming.Set(openAIWSTurnStateHeader, turnState)
-		s.guardOpenAICodexTurnStateEcho(c, account, incoming)
-		turnState = incoming.Get(openAIWSTurnStateHeader)
-	}
-	if turnState == "" && stateStore != nil && executionScope != "" {
-		if savedTurnState, ok := stateStore.GetSessionTurnState(groupID, executionScope, account.ID, openAIWSPayloadString(payload, "model")); ok {
+	if turnState == "" && stateStore != nil && sessionHash != "" {
+		if savedTurnState, ok := stateStore.GetSessionTurnState(groupID, sessionHash); ok {
 			turnState = savedTurnState
 		}
 	}
@@ -211,16 +203,14 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	defer acquireCancel()
 
 	lease, err := s.getOpenAIWSConnPool().Acquire(acquireCtx, openAIWSAcquireRequest{
-		Account:        account,
-		WSURL:          wsURL,
-		Headers:        wsHeaders,
-		TurnStateScope: openAITurnStatePoolScope(c, executionScope),
-		TurnStateModel: openAIWSPayloadString(payload, "model"),
+		Account: account,
+		WSURL:   wsURL,
+		Headers: wsHeaders,
 		HeadersFactory: func(factoryCtx context.Context, headers http.Header) (http.Header, error) {
 			return s.refreshOpenAIAgentIdentityHeaders(factoryCtx, account, headers)
 		},
 		PreferredConnID: preferredConnID,
-		ForceNewConn:    forceNewConn || (executionScope == "" && previousResponseID == ""),
+		ForceNewConn:    forceNewConn,
 		ProxyURL: func() string {
 			if account.ProxyID != nil && account.Proxy != nil {
 				return account.Proxy.URL()
@@ -329,9 +319,12 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		handshakeTurnState != "",
 		len(handshakeTurnState),
 	)
-	if capturedState := s.captureOpenAIWSHandshakeTurnState(c, account, lease, stateStore, groupID, executionScope, openAIWSPayloadString(payload, "model")); capturedState != "" {
+	if handshakeTurnState != "" {
+		if stateStore != nil && sessionHash != "" {
+			stateStore.BindSessionTurnState(groupID, sessionHash, handshakeTurnState, s.openAIWSSessionStickyTTL())
+		}
 		if c != nil {
-			c.Header(http.CanonicalHeaderKey(openAIWSTurnStateHeader), capturedState)
+			c.Header(http.CanonicalHeaderKey(openAIWSTurnStateHeader), handshakeTurnState)
 		}
 	}
 
@@ -439,7 +432,6 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			OpenAIWSMode:                  true,
 			UpstreamTerminalEvent:         upstreamTerminalEvent,
 			ResponseHeaders:               lease.HandshakeHeaders(),
-			TurnStateAudit:                lease.turnStateAudit(),
 			Duration:                      time.Since(startTime),
 			FirstTokenMs:                  firstTokenMs,
 			ClientDisconnect:              clientDisconnected,

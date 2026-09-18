@@ -843,22 +843,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	}
 	turnState := ""
 	turnMetadata := ""
-	stateModel := strings.TrimSpace(gjson.GetBytes(firstClientMessage, "model").String())
-	stateScope, _ := resolveOpenAIWSExecutionScope(c, originalFirstClientMessage, getAPIKeyIDFromContext(c))
-	stateStore := s.getOpenAIWSStateStore()
-	stateGroupID := getOpenAIGroupIDFromContext(c)
 	if c != nil {
-		c.Set(openAITurnStateScopeContextKey, stateScope)
-		c.Set(openAITurnStateModelContextKey, stateModel)
 		turnState = strings.TrimSpace(c.GetHeader(openAIWSTurnStateHeader))
 		turnMetadata = strings.TrimSpace(c.GetHeader(openAIWSTurnMetadataHeader))
-	}
-	incomingState := http.Header{}
-	incomingState.Set(openAIWSTurnStateHeader, turnState)
-	s.guardOpenAICodexTurnStateEcho(c, account, incomingState)
-	turnState = incomingState.Get(openAIWSTurnStateHeader)
-	if turnState == "" && stateStore != nil && stateScope != "" {
-		turnState, _ = stateStore.GetSessionTurnState(stateGroupID, stateScope, account.ID, stateModel)
 	}
 	headers, _, buildHdrErr := s.buildOpenAIWSHeaders(
 		ctx,
@@ -937,13 +924,6 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		openAIWSHeaderValueForLog(handshakeHeaders, "x-request-id"),
 	)
 
-	if state := extractOpenAICodexTurnState(handshakeHeaders); state != "" {
-		s.noteOpenAICodexTurnStateProvenance(c, account, state)
-		if stateStore != nil && stateScope != "" {
-			stateStore.BindSessionTurnState(stateGroupID, stateScope, state, s.openAIWSSessionStickyTTL(), account.ID, stateModel)
-		}
-	}
-	stateBoundConnection := headers.Get(openAIWSTurnStateHeader) != "" || extractOpenAICodexTurnState(handshakeHeaders) != ""
 	upstreamFrameConn, ok := upstreamConn.(openaiwsv2.FrameConn)
 	if !ok {
 		return errors.New("openai ws passthrough upstream connection does not support frame relay")
@@ -1013,11 +993,6 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			}
 			eventType := strings.TrimSpace(gjson.GetBytes(payload, "type").String())
 			isResponseCreate := eventType == "response.create"
-			if isResponseCreate && stateBoundConnection {
-				if frameScope, _ := resolveOpenAIWSExecutionScope(c, payload, getAPIKeyIDFromContext(c)); frameScope != "" && frameScope != stateScope {
-					return payload, nil, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "execution scope changed on a state-bound websocket; please reconnect", nil)
-				}
-			}
 			responseCreateAt := time.Time{}
 			acceptedTurn := false
 			if isResponseCreate {
@@ -1113,9 +1088,6 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			// 绕过路径。这里只看 session.update 事件中的 session.model
 			// 字段，response.create 自己的 model 仍然由其本帧字段决定。
 			if updated := openAIWSPassthroughPolicyModelFromSessionFrame(account, payload); updated != "" {
-				if stateBoundConnection && updated != stateModel {
-					return payload, nil, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "model changed on a state-bound websocket; please reconnect", nil)
-				}
 				capturedSessionModel = updated
 			}
 			usageMeta.updateSessionRequestModel(payload)
@@ -1130,9 +1102,6 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			model := openAIWSPassthroughPolicyModelForFrame(account, payload)
 			if model == "" {
 				model = capturedSessionModel
-			}
-			if isResponseCreate && stateBoundConnection && model != stateModel {
-				return payload, nil, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "model changed on a state-bound websocket; please reconnect", nil)
 			}
 			if isResponseCreate && model != "" && model != strings.TrimSpace(gjson.GetBytes(payload, "model").String()) {
 				payload = s.ReplaceModelInBody(payload, model)
@@ -1266,7 +1235,6 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					OpenAIWSMode:                  true,
 					UpstreamTerminalEvent:         normalizeOpenAIWSTerminalEvent(turn.TerminalEventType),
 					ResponseHeaders:               cloneHeader(handshakeHeaders),
-					TurnStateAudit:                observeTurnStateHeaders(headers, handshakeHeaders, "ws_handshake"),
 					Duration:                      turn.Duration,
 					FirstTokenMs:                  turn.FirstTokenMs,
 				}
@@ -1408,7 +1376,6 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		OpenAIWSMode:                  true,
 		UpstreamTerminalEvent:         normalizeOpenAIWSTerminalEvent(relayResult.TerminalEventType),
 		ResponseHeaders:               cloneHeader(handshakeHeaders),
-		TurnStateAudit:                observeTurnStateHeaders(headers, handshakeHeaders, "ws_handshake"),
 		Duration:                      relayResult.Duration,
 		FirstTokenMs:                  relayResult.FirstTokenMs,
 	}

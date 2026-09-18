@@ -1,16 +1,12 @@
 package service
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 // openAICodexTurnStateHeader 是 Codex 的回合状态头。上游在响应头中铸造该
@@ -19,141 +15,29 @@ import (
 // codex-api/src/sse/responses.rs 与 endpoint/compact.rs）。
 const openAICodexTurnStateHeader = "x-codex-turn-state"
 
-// Each opaque token is attributed to its issuing account and actual upstream
-// model, within the client's execution scope. A session's most recent account
-// is insufficient: concurrent requests can return states from different accounts.
+// turn-state blob 是上游在"出站身份"（含 #5553 指纹收敛改写后的
+// installation/session/thread 标识）下铸造的，同账号回放自洽；跨账号回放
+// （failover 换号后客户端仍回带旧账号的 blob）是代理链独有、真实 Codex
+// 永远不会产生的矛盾信号。溯源表记录每个下游会话最近一次铸造该 blob 的
+// 账号，出站守卫据此剥离已知异账号的回带值。
 type openAICodexTurnStateOrigin struct {
 	accountID int64
-	model     string
-	createdAt time.Time
 	expiresAt time.Time
-	source    string
 }
 
-// A local retention policy, not a claim about upstream compute or quality.
-const openAIPreferredTurnStateLength = 292
-
-type preferredOpenAITurnState struct {
-	state  string
-	origin openAICodexTurnStateOrigin
-}
-
-func preferredOpenAITurnStateKey(c *gin.Context, account *Account) string {
-	scope, model := openAICodexTurnStateSeed(c), openAITurnStateModel(c)
-	if account == nil || account.ID <= 0 || scope == "" || model == "" {
-		return ""
-	}
-	return fmt.Sprintf("%d:%q:%q", account.ID, model, scope)
-}
-
-func (s *OpenAIGatewayService) retainPreferredOpenAITurnState(c *gin.Context, account *Account, state string, origin openAICodexTurnStateOrigin) {
-	key := preferredOpenAITurnStateKey(c, account)
-	if s == nil || key == "" || len(state) != openAIPreferredTurnStateLength || origin.source == "synthetic_probe" || origin.accountID != account.ID || origin.model != openAITurnStateModel(c) || !time.Now().Before(origin.expiresAt) {
-		return
-	}
-	next := preferredOpenAITurnState{state: state, origin: origin}
-	for {
-		raw, loaded := s.openaiPreferredTurnStates.LoadOrStore(key, next)
-		if !loaded {
-			return
-		}
-		old := raw.(preferredOpenAITurnState)
-		// Re-observing old bytes or checking out an older pooled handshake must
-		// not renew the lifetime or displace a newer 292 token.
-		if old.state == state || !origin.createdAt.After(old.origin.createdAt) {
-			return
-		}
-		if s.openaiPreferredTurnStates.CompareAndSwap(key, old, next) {
-			return
-		}
-	}
-}
-
-// Outbound policy: only send an unexpired, upstream-observed 292 token for this
-// exact account/model/client scope. A 312 response never overwrites the retained
-// 292. No preferred token means no state header, not reuse of an expired token.
-func (s *OpenAIGatewayService) selectPreferredOpenAITurnState(c *gin.Context, account *Account, h http.Header) {
-	if s == nil || h == nil {
-		return
-	}
-	s.guardOpenAICodexTurnStateEcho(c, account, h)
-	// A client echo of a synthetic seed must still consult the shared pool so
-	// removal/update there is not bypassed by client headers or local provenance.
-	if raw, ok := s.openaiCodexTurnStateOrigins.Load(openAITurnStateOriginKey(c, extractOpenAICodexTurnState(h))); ok && raw.(openAICodexTurnStateOrigin).source == "synthetic_probe" {
-		h.Del(openAICodexTurnStateHeader)
-	}
-	if len(extractOpenAICodexTurnState(h)) != openAIPreferredTurnStateLength {
-		h.Del(openAICodexTurnStateHeader)
-	}
-	key := preferredOpenAITurnStateKey(c, account)
-	if key == "" {
-		h.Del(openAICodexTurnStateHeader)
-		s.selectSharedProbeTurnState(c, account, h)
-		return
-	}
-	if raw, ok := s.openaiPreferredTurnStates.Load(key); ok {
-		preferred := raw.(preferredOpenAITurnState)
-		if time.Now().Before(preferred.origin.expiresAt) {
-			h.Set(openAICodexTurnStateHeader, preferred.state)
-			logger.L().Debug("openai preferred turn state selected", zap.Int64("account_id", account.ID), zap.String("upstream_model", preferred.origin.model), zap.String("state_digest", openAITurnStateDigest(preferred.state)[:16]), zap.Float64("state_age_seconds", time.Since(preferred.origin.createdAt).Seconds()))
-			// Sparse, non-secret production evidence without changing log levels.
-			if count := s.openaiPreferredTurnStateSends.Add(1); count <= 3 || count%128 == 0 {
-				logger.L().Info("openai turn state policy applied", zap.String("policy", "prefer_292"), zap.Int("state_length", len(preferred.state)), zap.Int64("account_id", account.ID), zap.String("upstream_model", preferred.origin.model), zap.Uint64("selection_count", count))
-			}
-		} else {
-			s.openaiPreferredTurnStates.CompareAndDelete(key, preferred)
-		}
-	}
-	if extractOpenAICodexTurnState(h) == "" {
-		s.selectSharedProbeTurnState(c, account, h)
-	}
-}
-
-const (
-	openAITurnStateModelContextKey = "openai_turn_state_upstream_model"
-	openAITurnStateScopeContextKey = "openai_turn_state_scope"
-)
-
-func openAITurnStatePoolScope(c *gin.Context, scope string) string {
-	if scope != "" {
-		return scope
-	}
-	// Anonymous requests do not share cached state. Keep even their continuation
-	// sockets isolated by API key; fresh unscoped requests also force a new dial.
-	return fmt.Sprintf("anonymous-key:%d", getAPIKeyIDFromContext(c))
-}
-
-func openAITurnStateDigest(state string) string {
-	digest := sha256.Sum256([]byte(state))
-	return hex.EncodeToString(digest[:])
-}
-
-func openAITurnStateOriginKey(c *gin.Context, state string) string {
-	seed := openAICodexTurnStateSeed(c)
-	if seed == "" || state == "" {
-		return ""
-	}
-	return seed + "\x00" + openAITurnStateDigest(state)
-}
-
-func openAITurnStateModel(c *gin.Context) string {
-	if c == nil {
-		return ""
-	}
-	return c.GetString(openAITurnStateModelContextKey)
-}
-
-// Prefer the original (pre-namespace-rewrite) execution scope. The header-only
-// fallback uses the same derivation, so HTTP and WS agree on token ownership.
+// openAICodexTurnStateSeed 返回溯源表键：API Key + 客户端原始会话标识。
+// 客户端会话标识取自请求头（与指纹收敛的 thread 派生同源，见
+// extractClientSessionID），确保同一下游会话的记录/守卫两侧使用同一键。
+// 无会话标识时返回空串，表示不做跟踪（保持透传现状）。
 func openAICodexTurnStateSeed(c *gin.Context) string {
 	if c == nil || c.Request == nil {
 		return ""
 	}
-	if scope := c.GetString(openAITurnStateScopeContextKey); scope != "" {
-		return scope
+	sessionID := extractClientSessionID(c.Request.Header)
+	if sessionID == "" {
+		return ""
 	}
-	scope, _ := resolveOpenAIWSExecutionScope(c, nil, getAPIKeyIDFromContext(c))
-	return scope
+	return strconv.FormatInt(getAPIKeyIDFromContext(c), 10) + "\x00" + sessionID
 }
 
 // relayOpenAICodexTurnState 将上游响应中的 turn-state 显式写入下游响应头，
@@ -172,7 +56,7 @@ func (s *OpenAIGatewayService) relayOpenAICodexTurnState(c *gin.Context, account
 		return
 	}
 	c.Writer.Header().Set(canonical, state)
-	s.noteOpenAICodexTurnStateProvenance(c, account, state)
+	s.noteOpenAICodexTurnStateProvenance(c, account)
 }
 
 // stageOpenAICodexTurnState 将上游 turn-state 暂存到延迟提交的响应头集合
@@ -205,7 +89,7 @@ func (s *OpenAIGatewayService) noteStagedOpenAICodexTurnStateCommitted(c *gin.Co
 	if staged == nil || strings.TrimSpace(staged.Get(openAICodexTurnStateHeader)) == "" {
 		return
 	}
-	s.noteOpenAICodexTurnStateProvenance(c, account, extractOpenAICodexTurnState(staged))
+	s.noteOpenAICodexTurnStateProvenance(c, account)
 }
 
 func extractOpenAICodexTurnState(upstream http.Header) string {
@@ -215,78 +99,53 @@ func extractOpenAICodexTurnState(upstream http.Header) string {
 	return strings.TrimSpace(upstream.Get(openAICodexTurnStateHeader))
 }
 
-// noteOpenAICodexTurnStateProvenance records scope + token digest -> issuer.
-func (s *OpenAIGatewayService) noteOpenAICodexTurnStateProvenance(c *gin.Context, account *Account, state string) {
-	s.noteOpenAICodexTurnStateProvenanceAt(c, account, state, time.Now())
-}
-
-func (s *OpenAIGatewayService) noteOpenAICodexTurnStateProvenanceAt(c *gin.Context, account *Account, state string, issuedAt time.Time) {
+// noteOpenAICodexTurnStateProvenance 记录（下游会话 → 铸造账号）。
+func (s *OpenAIGatewayService) noteOpenAICodexTurnStateProvenance(c *gin.Context, account *Account) {
 	if s == nil || account == nil || account.ID <= 0 {
 		return
 	}
-	key := openAITurnStateOriginKey(c, state)
-	model := openAITurnStateModel(c)
-	if key == "" || model == "" {
+	seed := openAICodexTurnStateSeed(c)
+	if seed == "" {
 		return
 	}
-	// An identical token is not a newly issued token. Never extend its lifetime
-	// on a replayed response or a pooled connection's old handshake headers.
-	actual, loaded := s.openaiCodexTurnStateOrigins.LoadOrStore(key, openAICodexTurnStateOrigin{
+	s.openaiCodexTurnStateOrigins.Store(seed, openAICodexTurnStateOrigin{
 		accountID: account.ID,
-		model:     model,
-		createdAt: issuedAt,
-		expiresAt: issuedAt.Add(s.openAIWSSessionStickyTTL()),
+		expiresAt: time.Now().Add(s.openAIWSSessionStickyTTL()),
 	})
-	s.retainPreferredOpenAITurnState(c, account, state, actual.(openAICodexTurnStateOrigin))
-	if !loaded {
-		logger.L().Debug("openai turn state captured", zap.Int64("account_id", account.ID), zap.String("upstream_model", model), zap.Int("state_length", len(state)), zap.String("state_digest", openAITurnStateDigest(state)[:16]))
-	}
 	s.sweepOpenAICodexTurnStateOrigins()
 }
 
-// Observe a handshake once, including when the first client receives a prewarmed
-// connection. Its lifetime starts at the dial, never at pool checkout.
-func (s *OpenAIGatewayService) captureOpenAIWSHandshakeTurnState(c *gin.Context, account *Account, lease *openAIWSConnLease, store OpenAIWSStateStore, groupID int64, scope, model string) string {
-	if s == nil || account == nil || lease == nil || lease.conn == nil {
-		return ""
-	}
-	state := strings.TrimSpace(lease.HandshakeHeader(openAIWSTurnStateHeader))
-	issuedAt := lease.conn.createdAt()
-	remaining := time.Until(issuedAt.Add(s.openAIWSSessionStickyTTL()))
-	if state == "" || issuedAt.IsZero() || remaining <= 0 || !lease.conn.turnStateCaptured.CompareAndSwap(false, true) {
-		return ""
-	}
-	if store != nil && scope != "" {
-		store.BindSessionTurnState(groupID, scope, state, remaining, account.ID, model)
-	}
-	s.noteOpenAICodexTurnStateProvenanceAt(c, account, state, issuedAt)
-	return state
-}
-
-// Only echo a known, unexpired token from this scope, account and upstream model.
-// Unknown tokens (including after a process restart) start a fresh chain. HTTP
-// clients own turn semantics: do not inject a cached state when they omit it.
+// guardOpenAICodexTurnStateEcho 出站守卫：客户端回带的 turn-state 若已知由
+// 其他账号铸造则剥离，同账号或无溯源记录时保持原样。只剥离、不注入——
+// /responses 路径的客户端是真实 Codex，会按自身回合语义自行回带；服务端
+// 注入是 Claude 兼容桥（无法回带的客户端）的专属行为。
 func (s *OpenAIGatewayService) guardOpenAICodexTurnStateEcho(c *gin.Context, account *Account, h http.Header) {
 	if s == nil || h == nil || account == nil {
 		return
 	}
-	state := extractOpenAICodexTurnState(h)
-	if state == "" {
+	if strings.TrimSpace(h.Get(openAICodexTurnStateHeader)) == "" {
 		return
 	}
-	key := openAITurnStateOriginKey(c, state)
-	raw, _ := s.openaiCodexTurnStateOrigins.Load(key)
-	origin, known := raw.(openAICodexTurnStateOrigin)
-	model := openAITurnStateModel(c)
-	valid := key != "" && known && model != "" && origin.model == model && origin.accountID == account.ID && time.Now().Before(origin.expiresAt)
-	if !valid {
+	seed := openAICodexTurnStateSeed(c)
+	if seed == "" {
+		return
+	}
+	raw, ok := s.openaiCodexTurnStateOrigins.Load(seed)
+	if !ok {
+		return
+	}
+	origin, ok := raw.(openAICodexTurnStateOrigin)
+	if !ok {
+		s.openaiCodexTurnStateOrigins.Delete(seed)
+		return
+	}
+	if !origin.expiresAt.IsZero() && time.Now().After(origin.expiresAt) {
+		s.openaiCodexTurnStateOrigins.Delete(seed)
+		return
+	}
+	if origin.accountID != account.ID {
 		h.Del(openAICodexTurnStateHeader)
 	}
-	age := float64(0)
-	if known && !origin.createdAt.IsZero() {
-		age = time.Since(origin.createdAt).Seconds()
-	}
-	logger.L().Debug("openai turn state echo", zap.Int64("account_id", account.ID), zap.String("upstream_model", model), zap.Bool("accepted", valid), zap.Bool("known", known), zap.Float64("state_age_seconds", age), zap.Int("state_length", len(state)), zap.String("state_digest", openAITurnStateDigest(state)[:16]))
 }
 
 // sweepOpenAICodexTurnStateOrigins 机会式清扫过期溯源记录：每 256 次写入
@@ -300,13 +159,6 @@ func (s *OpenAIGatewayService) sweepOpenAICodexTurnStateOrigins() {
 		origin, ok := value.(openAICodexTurnStateOrigin)
 		if !ok || (!origin.expiresAt.IsZero() && now.After(origin.expiresAt)) {
 			s.openaiCodexTurnStateOrigins.Delete(key)
-		}
-		return true
-	})
-	s.openaiPreferredTurnStates.Range(func(key, value any) bool {
-		preferred := value.(preferredOpenAITurnState)
-		if !now.Before(preferred.origin.expiresAt) {
-			s.openaiPreferredTurnStates.CompareAndDelete(key, value)
 		}
 		return true
 	})

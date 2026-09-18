@@ -71,14 +71,6 @@
               </div>
             </div>
             <span v-else class="font-medium text-gray-900 dark:text-white">{{ row.model }}</span>
-            <div v-if="showAccountBilling" data-testid="turn-state-audit" class="text-xs text-gray-500 dark:text-gray-400">
-              <template v-if="row.turn_state_audit">
-                {{ t('usage.turnStateSent') }}: {{ row.turn_state_audit.sent_length || t('usage.turnStateAbsent') }}
-                · <span data-testid="turn-state-received" :class="row.turn_state_audit.received_length === 312 ? 'font-semibold text-red-600 dark:text-red-400' : ''">{{ t('usage.turnStateReceived') }}: {{ row.turn_state_audit.received_length || t('usage.turnStateAbsent') }}</span>
-                <span v-if="row.turn_state_audit.transport === 'ws_handshake'">{{ ' ' }}({{ t('usage.turnStateHandshake') }})</span>
-              </template>
-              <template v-else>{{ t('usage.turnStateUnknown') }}</template>
-            </div>
             <div
               v-if="row.upstream_model_mismatch === true && row.upstream_response_model"
               class="break-all pl-3 text-[11px]"
@@ -538,12 +530,12 @@
           </div>
           <div class="flex items-center justify-between gap-6">
             <span class="text-gray-400">{{ t('admin.usage.customerStandardCost') }}</span>
-            <span class="font-medium text-white">${{ tooltipData?.total_cost?.toFixed(8) || '0.00000000' }}</span>
+            <span class="font-medium text-white">${{ tooltipData?.total_cost?.toFixed(6) || '0.000000' }}</span>
           </div>
           <template v-if="tooltipData && showAccountBilling">
             <div class="flex items-center justify-between gap-6">
               <span class="text-gray-400">{{ t('admin.usage.upstreamMeteredCost') }}</span>
-              <span class="font-medium text-cyan-300">${{ upstreamMeteredCost(tooltipData).toFixed(8) }}</span>
+              <span class="font-medium text-cyan-300">${{ upstreamMeteredCost(tooltipData).toFixed(6) }}</span>
             </div>
             <div v-if="cacheStrategyApplied(tooltipData)" class="flex items-center justify-between gap-6">
               <span class="text-gray-400">{{ t('admin.usage.billingPolicyDelta') }}</span>
@@ -647,7 +639,7 @@ const reclassifiedCacheTokens = (row: AdminUsageLog): number =>
   Math.max(0, upstreamCacheRead(row) - row.cache_read_tokens)
 
 const upstreamMeteredCost = (row: AdminUsageLog): number =>
-  cacheStrategyApplied(row) ? Math.max(0, row.upstream_total_cost ?? row.total_cost ?? 0) : Math.max(0, row.total_cost ?? 0)
+  cacheStrategyApplied(row) ? Math.max(0, row.upstream_total_cost ?? row.total_cost) : Math.max(0, row.total_cost)
 
 const billingPolicyDelta = (row: AdminUsageLog): number =>
   Math.max(0, row.total_cost - upstreamMeteredCost(row))

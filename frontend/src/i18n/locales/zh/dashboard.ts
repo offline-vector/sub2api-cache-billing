@@ -327,27 +327,6 @@ export default {
 
   // Usage
   usage: {
-    turnStateSent: 'State 发送',
-    turnStateReceived: '返回',
-    turnStateAbsent: '无',
-    turnStateHandshake: '连接握手',
-    turnStateUnknown: 'State 未记录',
-    probeLogs: {
-      title: '尝试日志',
-      description: '仅查看后台诊断记录，不发送新请求。proxy 编号表示代理条目，不是实测出口 IP。292/312 仅为返回长度，不能据此确定算力或 429 原因；历史日志缺失字段显示为 —。',
-      account: '账号 ID', model: '模型', all: '全部', filter: '筛选', refresh: '刷新', loading: '读取中…',
-      autoRefresh: '每 10 秒自动刷新', online: '后台任务运行中', offline: '后台任务未运行或状态未更新', updated: '状态检查时间',
-      retention: '最多保留最近 {count} 条', historyPaused: '浏览历史中，自动刷新已暂停',
-      empty: '没有匹配记录。若游标记录已轮转，请点击刷新。', latest: '回到最新', older: '更早记录',
-      route: '路由 / 代理编号', attempt: '本轮序号', responseModel: '响应声明模型', error: '错误码 / 类型', wait: '等待',
-      shared: '共享池写入', published: '本次已写入', notPublished: '本次未写入', completed: '响应完成', incomplete: '未完成 / 错误',
-      invalidAccount: '请输入正整数账号 ID，或留空查看全部。', loadError: '尝试日志读取失败，请刷新重试。',
-      events: {
-        batch_start: '后台任务启动', batch_stopped: '后台任务停止', batch_complete: '本轮结束',
-        rate_limit_backoff: '429 / 限流等待', direct_replay_checked: '直连复核记录',
-        account_model_stopped: '账号模型已停止', proxy_inventory_unavailable: '代理列表读取失败', no_active_proxy: '无可用代理',
-      },
-    },
     title: '使用记录',
     description: '查看和分析您的 API 使用历史',
     costDetails: '费用明细',

@@ -288,19 +288,11 @@ func (s *OpenAIGatewayService) isOpenAICompatSessionContinuationDisabled(_ conte
 	return binding.ContinuationDisabled
 }
 
-func openAICompatTurnStateKey(c *gin.Context, account *Account, promptCacheKey, model string) string {
-	key := openAICompatSessionResponseKey(c, account, promptCacheKey)
-	if key == "" || strings.TrimSpace(model) == "" {
-		return ""
-	}
-	return key + "\x00turn_state\x00" + strings.TrimSpace(model) + "\x00" + openAICodexTurnStateSeed(c)
-}
-
-func (s *OpenAIGatewayService) getOpenAICompatSessionTurnState(_ context.Context, c *gin.Context, account *Account, promptCacheKey, model string) string {
+func (s *OpenAIGatewayService) getOpenAICompatSessionTurnState(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) string {
 	if s == nil {
 		return ""
 	}
-	key := openAICompatTurnStateKey(c, account, promptCacheKey, model)
+	key := openAICompatSessionResponseKey(c, account, promptCacheKey)
 	if key == "" {
 		return ""
 	}
@@ -309,7 +301,7 @@ func (s *OpenAIGatewayService) getOpenAICompatSessionTurnState(_ context.Context
 		return ""
 	}
 	binding, ok := raw.(openAICompatSessionResponseBinding)
-	if !ok || len(strings.TrimSpace(binding.TurnState)) != openAIPreferredTurnStateLength {
+	if !ok || strings.TrimSpace(binding.TurnState) == "" {
 		return ""
 	}
 	if !binding.ExpiresAt.IsZero() && time.Now().After(binding.ExpiresAt) {
@@ -319,26 +311,23 @@ func (s *OpenAIGatewayService) getOpenAICompatSessionTurnState(_ context.Context
 	return strings.TrimSpace(binding.TurnState)
 }
 
-func (s *OpenAIGatewayService) bindOpenAICompatSessionTurnState(_ context.Context, c *gin.Context, account *Account, promptCacheKey, turnState, model string) {
+func (s *OpenAIGatewayService) bindOpenAICompatSessionTurnState(_ context.Context, c *gin.Context, account *Account, promptCacheKey, turnState string) {
 	if s == nil {
 		return
 	}
-	key := openAICompatTurnStateKey(c, account, promptCacheKey, model)
+	key := openAICompatSessionResponseKey(c, account, promptCacheKey)
 	state := strings.TrimSpace(turnState)
-	if key == "" || len(state) != openAIPreferredTurnStateLength || strings.TrimSpace(model) == "" {
+	if key == "" || state == "" {
 		return
 	}
-	// Separate from response continuation: updating response_id must not renew
-	// the lifetime of an older turn-state token.
 	binding := openAICompatSessionResponseBinding{
 		TurnState: state,
 		ExpiresAt: time.Now().Add(s.openAIWSResponseStickyTTL()),
 	}
 	if raw, ok := s.openaiCompatSessionResponses.Load(key); ok {
 		if existing, ok := raw.(openAICompatSessionResponseBinding); ok {
-			if existing.TurnState == state {
-				return
-			}
+			binding.ResponseID = existing.ResponseID
+			binding.ContinuationDisabled = existing.ContinuationDisabled
 		}
 	}
 	s.openaiCompatSessionResponses.Store(key, binding)

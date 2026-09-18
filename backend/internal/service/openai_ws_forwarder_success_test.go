@@ -1323,7 +1323,7 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnStateAndMetadataReplayOnReconnect
 
 		respHeader := http.Header{}
 		if idx == 1 {
-			respHeader.Set("x-codex-turn-state", preferredTurnStateFixture("turn_state_first"))
+			respHeader.Set("x-codex-turn-state", "turn_state_first")
 		}
 		conn, err := upgrader.Upgrade(w, r, respHeader)
 		if err != nil {
@@ -1407,9 +1407,9 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnStateAndMetadataReplayOnReconnect
 	sessionHash, _ := resolveOpenAIWSExecutionScope(c1, reqBody, getAPIKeyIDFromContext(c1))
 	require.NotEmpty(t, sessionHash)
 	store := svc.getOpenAIWSStateStore()
-	turnState, ok := store.GetSessionTurnState(0, sessionHash, account.ID, "gpt-5.1")
+	turnState, ok := store.GetSessionTurnState(0, sessionHash)
 	require.True(t, ok)
-	require.Equal(t, preferredTurnStateFixture("turn_state_first"), turnState)
+	require.Equal(t, "turn_state_first", turnState)
 
 	// 主动淘汰连接，模拟下一次请求发生重连。
 	connID, hasConn := store.GetResponseConn(result1.RequestID)
@@ -1429,7 +1429,7 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnStateAndMetadataReplayOnReconnect
 	secondHandshakeHeaders := <-headersCh
 	require.Equal(t, "turn_meta_1", firstHandshakeHeaders.Get("X-Codex-Turn-Metadata"))
 	require.Equal(t, "turn_meta_2", secondHandshakeHeaders.Get("X-Codex-Turn-Metadata"))
-	require.Equal(t, preferredTurnStateFixture("turn_state_first"), secondHandshakeHeaders.Get("X-Codex-Turn-State"))
+	require.Equal(t, "turn_state_first", secondHandshakeHeaders.Get("X-Codex-Turn-State"))
 }
 
 func TestOpenAIGatewayService_Forward_WSv2_GeneratePrewarm(t *testing.T) {
@@ -1742,7 +1742,7 @@ func TestOpenAIGatewayService_Forward_WSv2StoreFalseSessionConnIsolation(t *test
 	require.Equal(t, int64(2), upgradeCount.Load(), "不同 session(store=false) 应隔离连接，避免续链状态互相覆盖")
 }
 
-func TestOpenAIGatewayService_Forward_WSv2StoreFalseDisableForceNewConnStillIsolatesSessions(t *testing.T) {
+func TestOpenAIGatewayService_Forward_WSv2StoreFalseDisableForceNewConnAllowsReuse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	var upgradeCount atomic.Int64
@@ -1837,7 +1837,7 @@ func TestOpenAIGatewayService_Forward_WSv2StoreFalseDisableForceNewConnStillIsol
 	result2, err := svc.Forward(context.Background(), c2, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result2)
-	require.Equal(t, int64(2), upgradeCount.Load(), "关闭强制新连不能绕过 turn-state 的会话隔离")
+	require.Equal(t, int64(1), upgradeCount.Load(), "关闭强制新连后，不同 session(store=false) 可复用连接")
 }
 
 func TestOpenAIGatewayService_Forward_WSv2ReadTimeoutAppliesPerRead(t *testing.T) {

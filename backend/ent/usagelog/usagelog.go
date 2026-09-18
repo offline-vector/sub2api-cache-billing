@@ -34,8 +34,6 @@ const (
 	FieldUpstreamModelMismatch = "upstream_model_mismatch"
 	// FieldChannelID holds the string denoting the channel_id field in the database.
 	FieldChannelID = "channel_id"
-	// FieldTurnStateAudit holds the string denoting the turn_state_audit field in the database.
-	FieldTurnStateAudit = "turn_state_audit"
 	// FieldModelMappingChain holds the string denoting the model_mapping_chain field in the database.
 	FieldModelMappingChain = "model_mapping_chain"
 	// FieldBillingTier holds the string denoting the billing_tier field in the database.
@@ -180,7 +178,6 @@ var Columns = []string{
 	FieldUpstreamResponseModel,
 	FieldUpstreamModelMismatch,
 	FieldChannelID,
-	FieldTurnStateAudit,
 	FieldModelMappingChain,
 	FieldBillingTier,
 	FieldBillingMode,

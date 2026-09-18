@@ -71,9 +71,6 @@ type openAIWSAcquireRequest struct {
 	Account *Account
 	WSURL   string
 	Headers http.Header
-	// Local-only state boundary. Never serialize these fields as upstream headers.
-	TurnStateScope string
-	TurnStateModel string
 	// HeadersFactory is evaluated inside dialConn. It exists so credentials
 	// whose authorization is per-dial (Agent Identity) are never cached in
 	// lastAcquire or delayed prewarm state.
@@ -87,8 +84,6 @@ type openAIWSAcquireRequest struct {
 }
 
 type openAIWSHandshakeCompatibilityKey struct {
-	turnStateScope      string
-	turnStateModel      string
 	betaFeatures        string
 	codexInstallationID string
 	sessionIDHyphen     string
@@ -288,8 +283,6 @@ type openAIWSConn struct {
 	ws openAIWSClientConn
 
 	handshakeHeaders       http.Header
-	turnStateAudit         *TurnStateAudit
-	turnStateCaptured      atomic.Bool
 	handshakeCompatibility openAIWSHandshakeCompatibilityKey
 	routingAffinity        string
 
@@ -1152,7 +1145,7 @@ func (p *openAIWSConnPool) acquire(ctx context.Context, req openAIWSAcquireReque
 
 retryAcquire:
 	accountID := req.Account.ID
-	compatibility := openAIWSAcquireCompatibility(req)
+	compatibility := normalizeOpenAIWSHandshakeCompatibility(req.Account, req.Headers)
 	routingAffinity := normalizeOpenAIWSRoutingAffinity(req.Headers)
 	effectiveMaxConns := p.effectiveMaxConnsByAccount(req.Account)
 	if effectiveMaxConns <= 0 {
@@ -2156,11 +2149,10 @@ func (p *openAIWSConnPool) dialConn(ctx context.Context, req openAIWSAcquireRequ
 	}
 	id := p.nextConnID(req.Account.ID)
 	pooledConn := newOpenAIWSConn(id, req.Account.ID, conn, handshakeHeaders)
-	pooledConn.turnStateAudit = observeTurnStateHeaders(headers, handshakeHeaders, "ws_handshake")
 	accountID := req.Account.ID
 	evict := func() { p.evictConn(accountID, id) }
 	pooledConn.onPeerClosed.Store(&evict)
-	pooledConn.handshakeCompatibility = openAIWSAcquireCompatibility(req)
+	pooledConn.handshakeCompatibility = normalizeOpenAIWSHandshakeCompatibility(req.Account, req.Headers)
 	pooledConn.routingAffinity = normalizeOpenAIWSRoutingAffinity(req.Headers)
 	return pooledConn, nil
 }
@@ -2341,7 +2333,7 @@ func cloneOpenAIWSAcquireRequestPtr(req *openAIWSAcquireRequest) *openAIWSAcquir
 func sameOpenAIWSPrewarmTarget(a, b openAIWSAcquireRequest) bool {
 	return stringsTrim(a.WSURL) == stringsTrim(b.WSURL) &&
 		stringsTrim(a.ProxyURL) == stringsTrim(b.ProxyURL) &&
-		openAIWSAcquireCompatibility(a) == openAIWSAcquireCompatibility(b)
+		normalizeOpenAIWSHandshakeCompatibility(a.Account, a.Headers) == normalizeOpenAIWSHandshakeCompatibility(b.Account, b.Headers)
 }
 
 func normalizeOpenAIWSBetaFeatures(headers http.Header) string {
@@ -2367,13 +2359,6 @@ func normalizeOpenAIWSBetaFeatures(headers http.Header) string {
 	}
 	sort.Strings(normalized)
 	return strings.Join(normalized, ",")
-}
-
-func openAIWSAcquireCompatibility(req openAIWSAcquireRequest) openAIWSHandshakeCompatibilityKey {
-	key := normalizeOpenAIWSHandshakeCompatibility(req.Account, req.Headers)
-	key.turnStateScope = req.TurnStateScope
-	key.turnStateModel = strings.TrimSpace(req.TurnStateModel)
-	return key
 }
 
 func normalizeOpenAIWSHandshakeCompatibility(account *Account, headers http.Header) openAIWSHandshakeCompatibilityKey {

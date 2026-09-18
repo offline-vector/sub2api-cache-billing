@@ -97,9 +97,9 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnStateBoundToExecutionScope(t *tes
 	require.NotEqual(t, legacyHash, scope)
 
 	store := svc.getOpenAIWSStateStore()
-	_, turnStateOnLegacy := store.GetSessionTurnState(groupID, legacyHash, account.ID, "gpt-5.1")
+	_, turnStateOnLegacy := store.GetSessionTurnState(groupID, legacyHash)
 	require.False(t, turnStateOnLegacy, "turn state 不得绑定到按 session_id 算出的会话哈希")
-	turnState, turnStateOnScope := store.GetSessionTurnState(groupID, scope, account.ID, "gpt-5.1")
+	turnState, turnStateOnScope := store.GetSessionTurnState(groupID, scope)
 	require.True(t, turnStateOnScope, "turn state 应绑定到执行作用域")
 	require.Equal(t, "turn-state-from-upstream", turnState)
 }
@@ -125,16 +125,11 @@ func TestOpenAIGatewayService_Forward_WSv2_ExecutionScopeUsesOriginalIdentity(t 
 	completed := func(id string) []byte {
 		return []byte(`{"type":"response.completed","response":{"id":"` + id + `","model":"gpt-5.1","usage":{"input_tokens":1,"output_tokens":1}}}`)
 	}
+	captureConn := &openAIWSCaptureConn{events: [][]byte{completed("resp_a"), completed("resp_b"), completed("resp_c")}}
 	handshake := http.Header{}
 	handshake.Set(openAIWSTurnStateHeader, "turn-state-from-upstream")
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(&turnStateScopeTestDialer{
-		openAIWSQueueDialer: openAIWSQueueDialer{conns: []openAIWSClientConn{
-			&openAIWSCaptureConn{events: [][]byte{completed("resp_a")}},
-			&openAIWSCaptureConn{events: [][]byte{completed("resp_b")}},
-			&openAIWSCaptureConn{events: [][]byte{completed("resp_c")}},
-		}}, handshake: handshake,
-	})
+	pool.setClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn, handshake: handshake})
 	defer pool.Close()
 
 	stateStore := NewOpenAIWSStateStore(nil)
@@ -186,31 +181,21 @@ func TestOpenAIGatewayService_Forward_WSv2_ExecutionScopeUsesOriginalIdentity(t 
 	scopeB, _ := resolveOpenAIWSExecutionScope(cB, rawB, apiKeyID)
 	require.NotEmpty(t, scopeA)
 	require.NotEqual(t, scopeA, scopeB, "不同 session_id 的会话必须落在不同的作用域")
-	_, boundA := stateStore.GetSessionTurnState(groupID, scopeA, account.ID, "gpt-5.4")
+	_, boundA := stateStore.GetSessionTurnState(groupID, scopeA)
 	require.True(t, boundA, "会话 A 的 turn state 应落在按原始 session_id 算出的作用域")
-	_, boundB := stateStore.GetSessionTurnState(groupID, scopeB, account.ID, "gpt-5.4")
+	_, boundB := stateStore.GetSessionTurnState(groupID, scopeB)
 	require.True(t, boundB, "会话 B 的 turn state 应落在按原始 session_id 算出的作用域")
 
 	injected := resolveCodexFingerprintIDs(account, "", codexFingerprintFull)
 	require.NotNil(t, injected)
 	injectedScope, _ := deriveOpenAISessionHashes(fmt.Sprintf("openai_ws_exec:%d|thread=%s", apiKeyID, injected.threadID))
-	_, boundToInjected := stateStore.GetSessionTurnState(groupID, injectedScope, account.ID, "gpt-5.4")
+	_, boundToInjected := stateStore.GetSessionTurnState(groupID, injectedScope)
 	require.False(t, boundToInjected, "指纹收敛注入的固定 thread_id 不得成为状态键")
 
 	threadBody := `{"model":"gpt-5.1","stream":false,"client_metadata":{"thread_id":"child-thread"},"input":[{"type":"input_text","text":"hello"}]}`
 	cC, rawC := forward("session-c", threadBody)
 	scopeC, threadC := resolveOpenAIWSExecutionScope(cC, rawC, apiKeyID)
 	require.Equal(t, "child-thread", threadC)
-	_, boundC := stateStore.GetSessionTurnState(groupID, scopeC, account.ID, "gpt-5.4")
+	_, boundC := stateStore.GetSessionTurnState(groupID, scopeC)
 	require.True(t, boundC, "客户端自带线程标识时，键必须与按原始报文算出的一致，不受账号 namespace 改写影响")
-}
-
-type turnStateScopeTestDialer struct {
-	openAIWSQueueDialer
-	handshake http.Header
-}
-
-func (d *turnStateScopeTestDialer) Dial(ctx context.Context, url string, headers http.Header, proxy string) (openAIWSClientConn, int, http.Header, error) {
-	conn, status, _, err := d.openAIWSQueueDialer.Dial(ctx, url, headers, proxy)
-	return conn, status, cloneHeader(d.handshake), err
 }
