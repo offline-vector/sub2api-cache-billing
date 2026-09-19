@@ -318,7 +318,26 @@ describe('admin UsageTable tooltip', () => {
     const triggers = wrapper.findAll('.group.relative')
     await triggers[triggers.length - 1].trigger('mouseenter')
     const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text()).filter(text => text.startsWith('$'))
-    expect(amounts).toEqual(['$0.00000000', '$0.00000000', '$0.00000000', '$0.00000000'])
+    // Fork adds the upstream-metered total alongside the customer total.
+    expect(amounts).toEqual(Array(5).fill('$0.00000000'))
+    wrapper.unmount()
+  })
+
+  it('keeps eight decimals for upstream cost and cache billing delta', async () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{ ...baseImageRow, billing_mode: 'token', image_count: 0,
+          cache_billing_ratio: 0.8, total_cost: 0.00000022,
+          upstream_total_cost: 0.00000012 }],
+        loading: false,
+        columns: [],
+      },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    const triggers = wrapper.findAll('.group.relative')
+    await triggers[triggers.length - 1].trigger('mouseenter')
+    const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text())
+    expect(amounts).toEqual(expect.arrayContaining(['$0.00000022', '$0.00000012', '+$0.00000010']))
     wrapper.unmount()
   })
 

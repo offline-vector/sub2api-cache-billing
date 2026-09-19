@@ -530,16 +530,16 @@
           </div>
           <div class="flex items-center justify-between gap-6">
             <span class="text-gray-400">{{ t('admin.usage.customerStandardCost') }}</span>
-            <span class="font-medium text-white">${{ tooltipData?.total_cost?.toFixed(6) || '0.000000' }}</span>
+            <span class="font-medium text-white">${{ tooltipData?.total_cost?.toFixed(8) || '0.00000000' }}</span>
           </div>
           <template v-if="tooltipData && showAccountBilling">
             <div class="flex items-center justify-between gap-6">
               <span class="text-gray-400">{{ t('admin.usage.upstreamMeteredCost') }}</span>
-              <span class="font-medium text-cyan-300">${{ upstreamMeteredCost(tooltipData).toFixed(6) }}</span>
+              <span class="font-medium text-cyan-300">${{ upstreamMeteredCost(tooltipData).toFixed(8) }}</span>
             </div>
             <div v-if="cacheStrategyApplied(tooltipData)" class="flex items-center justify-between gap-6">
               <span class="text-gray-400">{{ t('admin.usage.billingPolicyDelta') }}</span>
-              <span class="font-medium text-amber-300">+${{ billingPolicyDelta(tooltipData).toFixed(6) }}</span>
+              <span class="font-medium text-amber-300">+${{ billingPolicyDelta(tooltipData).toFixed(8) }}</span>
             </div>
           </template>
           <div class="flex items-center justify-between gap-6">
@@ -639,10 +639,10 @@ const reclassifiedCacheTokens = (row: AdminUsageLog): number =>
   Math.max(0, upstreamCacheRead(row) - row.cache_read_tokens)
 
 const upstreamMeteredCost = (row: AdminUsageLog): number =>
-  cacheStrategyApplied(row) ? Math.max(0, row.upstream_total_cost ?? row.total_cost) : Math.max(0, row.total_cost)
+  cacheStrategyApplied(row) ? Math.max(0, row.upstream_total_cost ?? row.total_cost ?? 0) : Math.max(0, row.total_cost ?? 0)
 
 const billingPolicyDelta = (row: AdminUsageLog): number =>
-  Math.max(0, row.total_cost - upstreamMeteredCost(row))
+  Math.max(0, (row.total_cost ?? 0) - upstreamMeteredCost(row))
 
 const formatRatio = (ratio?: number): string => `${Math.round((ratio ?? 1) * 100)}%`
 

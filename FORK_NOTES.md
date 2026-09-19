@@ -1,8 +1,20 @@
 # Cache Billing Fork
 
-This private fork is based on upstream Sub2API `v0.1.179` (`75f88be5`) and adds
+This fork is synced with upstream Sub2API `v0.2.7` (`1a9d49e16`) and adds
 an operator-controlled OpenAI cache-read billing policy. It does not change
 upstream cache routing or total input-token accounting.
+
+## v0.2.7 synchronization
+
+- Includes the complete upstream history since v0.2.5, not only the final
+  release commit. No separate v0.2.6 deployment is required.
+- Retains user-scoped cache-billing exemptions and the whitelist save fix.
+- Keeps the custom 292 probing, shared-state injection, renewal worker, and
+  probe-log interface reverted. Upstream's native turn-state and plugin behavior
+  stays aligned with upstream; no state-length filter or upstream feature removal
+  is introduced.
+- Keeps customer and upstream cost tooltips consistent at eight decimal places,
+  including missing-value fallback; billing arithmetic is unchanged.
 
 ## Configuration
 
