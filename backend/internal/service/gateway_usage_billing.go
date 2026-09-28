@@ -928,6 +928,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 			},
 			accountStandardCost,
 			pricingAt,
+			accountStatsLongContextPricingEnabled(nil),
 		)
 		if usageLog.AccountStatsCost == nil {
 			usageLog.AccountStatsCost = &accountStandardCost
