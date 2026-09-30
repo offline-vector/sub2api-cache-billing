@@ -1,11 +1,11 @@
 # Cache Billing Fork
 
-This fork syncs upstream Sub2API v0.2.10 while retaining the operator controlled
+This fork syncs upstream Sub2API v0.2.11 while retaining the operator controlled
 OpenAI cache billing policy and user scoped exemption whitelist.
 
 ## Synchronization boundary
 
-- Includes the complete upstream history through v0.2.10, including native
+- Includes the complete upstream history through v0.2.11, including native
   turn-state handling, OpenCode Go usage windows, model support, scheduler,
   connection, billing, backup, and administration changes.
 - Preserves `openai_cache_billing_ratio`, upstream usage audit fields, the user
@@ -15,7 +15,7 @@ OpenAI cache billing policy and user scoped exemption whitelist.
   aligned with upstream; no state length filter is added.
 - Keeps customer and upstream usage cost display at eight decimal places.
 
-The v0.2.10 upstream update removes its own cache audit changes, so this fork
+The v0.2.11 upstream update removes its own cache audit changes, so this fork
 reapplies migrations `900` and `901` and preserves the cache billing fields.
 There are no new fork migrations beyond those already deployed.
 Account statistics retain original upstream token buckets while respecting
