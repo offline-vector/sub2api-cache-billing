@@ -1,13 +1,14 @@
 # Cache Billing Fork
 
-This fork syncs upstream Sub2API v0.2.11 while retaining the operator controlled
+This fork syncs upstream Sub2API v0.2.13 while retaining the operator controlled
 OpenAI cache billing policy and user scoped exemption whitelist.
 
 ## Synchronization boundary
 
-- Includes the complete upstream history through v0.2.11, including native
-  turn-state handling, OpenCode Go usage windows, model support, scheduler,
-  connection, billing, backup, and administration changes.
+- Includes the complete upstream history through v0.2.13, including v0.2.12's
+  TypeSafe platform, recharge bonus tiers, account priority controls, and
+  security fixes. v0.2.13 fixes TypeSafe account creation and usage settlement
+  when an API key is deleted before billing completes.
 - Preserves `openai_cache_billing_ratio`, upstream usage audit fields, the user
   exemption whitelist, and its save behavior.
 - Keeps the custom 292 probing, shared state injection, renewal worker, and
@@ -15,9 +16,11 @@ OpenAI cache billing policy and user scoped exemption whitelist.
   aligned with upstream; no state length filter is added.
 - Keeps customer and upstream usage cost display at eight decimal places.
 
-The v0.2.11 upstream update removes its own cache audit changes, so this fork
-reapplies migrations `900` and `901` and preserves the cache billing fields.
-There are no new fork migrations beyond those already deployed.
+This fork retains migrations `900` and `901` and the cache billing audit fields
+restored during the v0.2.10 synchronization. There are no new fork migrations.
+The upstream upgrade adds `payment_orders.bonus_amount` and expands platform
+constraints for TypeSafe. Previously issued password-reset links expire due
+to the upstream change to hashed, single-use reset tokens.
 Account statistics retain original upstream token buckets while respecting
 upstream's account-level long-context pricing gate. Free Fast requests without
 pricing retain upstream's zero-cost usage-log behavior.
