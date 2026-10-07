@@ -1,14 +1,14 @@
 # Cache Billing Fork
 
-This fork syncs upstream Sub2API v0.2.13 while retaining the operator controlled
+This fork syncs upstream Sub2API v0.2.14 while retaining the operator controlled
 OpenAI cache billing policy and user scoped exemption whitelist.
 
 ## Synchronization boundary
 
-- Includes the complete upstream history through v0.2.13, including v0.2.12's
-  TypeSafe platform, recharge bonus tiers, account priority controls, and
-  security fixes. v0.2.13 fixes TypeSafe account creation and usage settlement
-  when an API key is deleted before billing completes.
+- Includes the complete upstream history through v0.2.14, including EasyPay
+  callback replay protection, fresh-install administrator credential validation,
+  and API-key model discovery in generated remote Codex configurations.
+  Retains all v0.2.12 and v0.2.13 platform, recharge, security, and billing fixes.
 - Preserves `openai_cache_billing_ratio`, upstream usage audit fields, the user
   exemption whitelist, and its save behavior.
 - Keeps the custom 292 probing, shared state injection, renewal worker, and
@@ -18,9 +18,9 @@ OpenAI cache billing policy and user scoped exemption whitelist.
 
 This fork retains migrations `900` and `901` and the cache billing audit fields
 restored during the v0.2.10 synchronization. There are no new fork migrations.
-The upstream upgrade adds `payment_orders.bonus_amount` and expands platform
-constraints for TypeSafe. Previously issued password-reset links expire due
-to the upstream change to hashed, single-use reset tokens.
+v0.2.14 adds no database migrations. The v0.2.12 migrations for recharge bonuses
+and TypeSafe constraints remain intact. Fresh-install credential requirements
+do not reset existing administrators or prevent initialized instances starting.
 Account statistics retain original upstream token buckets while respecting
 upstream's account-level long-context pricing gate. Free Fast requests without
 pricing retain upstream's zero-cost usage-log behavior.
