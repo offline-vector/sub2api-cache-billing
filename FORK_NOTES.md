@@ -1,14 +1,15 @@
 # Cache Billing Fork
 
-This fork syncs upstream Sub2API v0.2.14 while retaining the operator controlled
+This fork syncs upstream Sub2API v0.2.15 while retaining the operator controlled
 OpenAI cache billing policy and user scoped exemption whitelist.
 
 ## Synchronization boundary
 
-- Includes the complete upstream history through v0.2.14, including EasyPay
+- Includes the complete upstream history through v0.2.15, including the Cline
+  and Command Code platform catalog, dynamic platform validation, EasyPay
   callback replay protection, fresh-install administrator credential validation,
   and API-key model discovery in generated remote Codex configurations.
-  Retains all v0.2.12 and v0.2.13 platform, recharge, security, and billing fixes.
+  Retains all v0.2.12 through v0.2.14 platform, recharge, security, and billing fixes.
 - Preserves `openai_cache_billing_ratio`, upstream usage audit fields, the user
   exemption whitelist, and its save behavior.
 - Keeps the custom 292 probing, shared state injection, renewal worker, and
@@ -17,8 +18,10 @@ OpenAI cache billing policy and user scoped exemption whitelist.
 - Keeps customer and upstream usage cost display at eight decimal places.
 
 This fork retains migrations `900` and `901` and the cache billing audit fields
-restored during the v0.2.10 synchronization. There are no new fork migrations.
-v0.2.14 adds no database migrations. The v0.2.12 migrations for recharge bonuses
+restored during the v0.2.10 synchronization. Upstream v0.2.15 also includes
+migration `242`, which removes two platform CHECK constraints now enforced by
+the shared application platform catalog; it is retained unchanged. The v0.2.12
+migrations for recharge bonuses
 and TypeSafe constraints remain intact. Fresh-install credential requirements
 do not reset existing administrators or prevent initialized instances starting.
 Account statistics retain original upstream token buckets while respecting
