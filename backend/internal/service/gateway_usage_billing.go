@@ -888,8 +888,8 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 
 	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）。纯存储费不是一次模型请求，
-	// 账号统计使用上游原始 token/成本，客户缓存折扣只作用于客户扣费；无渠道定价时，
-	// 回退基数须先扣除存储费，随后统一把存储费加回，避免重复计算。
+	// 账号统计成本回落 total_cost（官方存储价）。账号统计使用上游原始 token/成本，
+	// 客户缓存折扣只作用于客户扣费。
 	if apiKey.GroupID != nil && !isCacheStorageOnlyResult(result) {
 		accountStandardCost := cost.TotalCost
 		if upstreamMeteredCost != nil {
@@ -911,8 +911,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 			accountStatsLongContextPricingEnabled(nil),
 		)
 		if usageLog.AccountStatsCost == nil {
-			accountStatsFallback := accountStandardCost - cacheStorageCost
-			usageLog.AccountStatsCost = &accountStatsFallback
+			usageLog.AccountStatsCost = &accountStandardCost
 		}
 		addCacheStorageToAccountStatsCost(usageLog, cacheStorageCost)
 	}
