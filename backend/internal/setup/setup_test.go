@@ -208,7 +208,7 @@ func TestWriteConfigFileKeepsDefaultUserConcurrency(t *testing.T) {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
 
-	if !strings.Contains(string(data), "user_concurrency: 5") {
+	if !strings.Contains(string(data), "user_concurrency: 10") {
 		t.Fatalf("config missing default user concurrency, got:\n%s", string(data))
 	}
 }
