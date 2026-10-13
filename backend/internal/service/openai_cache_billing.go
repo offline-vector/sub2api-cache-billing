@@ -47,19 +47,26 @@ func withCacheModificationWhitelistSnapshot(ctx context.Context, c *gin.Context,
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if _, ok := cacheModificationWhitelistSnapshot(ctx); !ok {
+	snapshot, ok := cacheModificationWhitelistSnapshot(ctx)
+	if !ok {
 		if c != nil && c.Request != nil {
 			if requestExempt, requestOK := cacheModificationWhitelistSnapshot(c.Request.Context()); requestOK {
 				ctx = context.WithValue(ctx, cacheModificationWhitelistSnapshotKey{}, requestExempt)
-			} else {
-				ctx = context.WithValue(ctx, cacheModificationWhitelistSnapshotKey{}, exempt)
+				snapshot = requestExempt
+				ok = true
 			}
-		} else {
-			ctx = context.WithValue(ctx, cacheModificationWhitelistSnapshotKey{}, exempt)
 		}
+		if !ok {
+			snapshot = exempt
+		}
+		ctx = context.WithValue(ctx, cacheModificationWhitelistSnapshotKey{}, snapshot)
 	}
 	if c != nil && c.Request != nil {
-		c.Request = c.Request.WithContext(ctx)
+		requestCtx := c.Request.Context()
+		if _, ok := cacheModificationWhitelistSnapshot(requestCtx); !ok {
+			requestCtx = context.WithValue(requestCtx, cacheModificationWhitelistSnapshotKey{}, snapshot)
+		}
+		c.Request = c.Request.WithContext(requestCtx)
 	}
 	return ctx
 }
@@ -83,19 +90,26 @@ func withOpenAICacheBillingRatioSnapshot(ctx context.Context, c *gin.Context, ra
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if _, ok := openAICacheBillingRatioSnapshot(ctx); !ok {
+	snapshot, ok := openAICacheBillingRatioSnapshot(ctx)
+	if !ok {
 		if c != nil && c.Request != nil {
 			if requestRatio, requestOK := openAICacheBillingRatioSnapshot(c.Request.Context()); requestOK {
 				ctx = context.WithValue(ctx, openAICacheBillingRatioSnapshotKey{}, requestRatio)
-			} else {
-				ctx = context.WithValue(ctx, openAICacheBillingRatioSnapshotKey{}, normalizeOpenAICacheBillingRatio(ratio))
+				snapshot = requestRatio
+				ok = true
 			}
-		} else {
-			ctx = context.WithValue(ctx, openAICacheBillingRatioSnapshotKey{}, normalizeOpenAICacheBillingRatio(ratio))
 		}
+		if !ok {
+			snapshot = normalizeOpenAICacheBillingRatio(ratio)
+		}
+		ctx = context.WithValue(ctx, openAICacheBillingRatioSnapshotKey{}, snapshot)
 	}
 	if c != nil && c.Request != nil {
-		c.Request = c.Request.WithContext(ctx)
+		requestCtx := c.Request.Context()
+		if _, ok := openAICacheBillingRatioSnapshot(requestCtx); !ok {
+			requestCtx = context.WithValue(requestCtx, openAICacheBillingRatioSnapshotKey{}, snapshot)
+		}
+		c.Request = c.Request.WithContext(requestCtx)
 	}
 	return ctx
 }
