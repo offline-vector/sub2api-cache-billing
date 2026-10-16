@@ -38,7 +38,7 @@ func (s *GatewayService) ForwardAsResponses(
 	ctx = s.snapshotOpenAICacheBillingRatio(ctx, c, account)
 	startTime := time.Now()
 
-	normalizedBody, normalized, err := normalizeOpenAIResponsesLegacyIngress(body)
+	normalizedBody, normalized, err := normalizeOpenAIResponsesLegacyIngressWithConfig(s.cfg, body)
 	if err != nil {
 		return nil, err
 	}
